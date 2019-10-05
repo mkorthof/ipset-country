@@ -15,9 +15,6 @@ INSTALLATION:
 
 NOTE: this script will insert an iptables REJECT rule for ipset
 
-Also available, and more extensive:
-[github.com/tokiclover/dotfiles/blob/master/bin/ips.bash](https://github.com/tokiclover/dotfiles/blob/master/bin/ips.bash)
-
 CONFIGURATION:
 --------------
 
@@ -79,3 +76,9 @@ CHANGES:
 - [20190905] it will check if INPUT chain exists in iptables
 - [20190905] cleaned it up a bit
 - [20190905] using firewalld is also supported now
+
+OTHER:
+------
+
+Also available: [github.com/tokiclover/dotfiles/blob/master/bin/ips.bash](https://github.com/tokiclover/dotfiles/blob/master/bin/ips.bash)
+
