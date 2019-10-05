@@ -74,8 +74,8 @@ Useful ipset commands:
 CHANGES:
 --------
 
-[20190905] tested on debian 10 and centos 7
-[20190905] blocking multiple countries should work
-[20190905] it will check if INPUT chain exists in iptables
-[20190905] cleaned it up a bit
-[20190905] using firewalld is also supported now
+- [20190905] tested on debian 10 and centos 7
+- [20190905] blocking multiple countries should work
+- [20190905] it will check if INPUT chain exists in iptables
+- [20190905] cleaned it up a bit
+- [20190905] using firewalld is also supported now
