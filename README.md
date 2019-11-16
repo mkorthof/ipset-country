@@ -25,18 +25,16 @@ NOTE: this script will insert an iptables REJECT rule for ipset
 Configuration:
 --------------
 
-Set OS using `DISTRO` setting (default is "auto)"
+If needed change OS using `DISTRO` setting. Default is "auto" which should be OK.
 
-- "auto"
-- "debian"
-- "redhat"
+- "auto", "debian" or "redhat"
 - "manual"
   - `confdir="/etc/iptables"` (example)
   - `rulesfile="${confdir}/myrules"`  (example)
 
 ---
 
-Specify countries to block as "ISOCODE,Name" (same as ipdeny.com), multiple entries should be seperated by semicolon ";"
+Specify countries to block as "ISOCODE,Name" (same as ipdeny.com), multiple entries should be seperated by semicolon `;`
 
 Example:
 
@@ -44,23 +42,20 @@ Example:
 
 ---
 
-Set to "1" to enable firewalld:
-
-`FIREWALLD=0`
+Set this option to "1" to enable firewalld: `FIREWALLD=0`
 
 ---
 
-URLs for ipv4 and/or ipv6 block files, you probably do not have to change these.
+Set URLs for ipv4 and/or ipv6 block files, you probably do not have to change these.
 
-To use ipverse.net instead of ipdeny.com see [script](ipset-country)
+To use ipverse.net instead of ipdeny.com and for more details see [script](ipset-country)
 
-`IPBLOCK_URL_V4="http://www.ipdeny.com/ipblocks/data/aggregated"`
-
-`IPBLOCK_URL_V6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"`
+- `IPBLOCK_URL_V4="http://www.ipdeny.com/ipblocks/data/aggregated"`
+- `IPBLOCK_URL_V6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"`
 
 ---
 
-Log file location:
+In case you want to change log file location set:
 
 `LOG="/var/log/ipset-country.log"`
 
