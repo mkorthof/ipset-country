@@ -68,9 +68,9 @@ FORCE=0
 # NOTE: seems ipdeny has no md5sums for aggregated ipv6 zone files and
 #       ipverse.com does not offer them at all (this autosets MD5CHECK=0)
 #
-IPBLOCK_URL="http://ipverse.net/ipblocks/data/countries"
-#IPBLOCK_URL_V4="http://www.ipdeny.com/ipblocks/data/aggregated"
-#IPBLOCK_URL_V6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"
+# IPBLOCK_URL="http://ipverse.net/ipblocks/data/countries"
+IPBLOCK_URL_V4="http://www.ipdeny.com/ipblocks/data/aggregated"
+IPBLOCK_URL_V6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"
 
 # Log to file, or to disable logging use: "/dev/null 2>&1"
 LOG="/var/log/ipset-country.log"
