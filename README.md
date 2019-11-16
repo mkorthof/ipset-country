@@ -4,7 +4,7 @@
 
 ---
 
-_This used to be a [gist](https://gist.github.com/mkorthof/3033ff64c4a5b4bd31336d422104d543) but was moved here instead_
+_This used to be a [Gist](https://gist.github.com/mkorthof/3033ff64c4a5b4bd31336d422104d543) but was moved here instead_
 
 ---
 
@@ -62,7 +62,7 @@ In case you want to change log file location set:
 
 ---
 
-Other options are explained in [script](ipset-country)
+**Other options are explained in [script](ipset-country)**
 
 IPset:
 ------
