@@ -1,9 +1,16 @@
 # ipset-country
+
 ## Block countries using iptables + ipset + ipdeny.com
 
-Supports RH, Debian with iptables and/or firewalld - both ipv4 and ipv6
+---
 
-This used to be a [gist](https://gist.github.com/mkorthof/3033ff64c4a5b4bd31336d422104d543) but was moved here instead
+_This used to be a [gist](https://gist.github.com/mkorthof/3033ff64c4a5b4bd31336d422104d543) but was moved here instead_
+
+---
+
+- [x] Also works with ipverse.com and other providers
+- [x] Supports RH, Debian with iptables and/or firewalld
+- [x] Both ipv4 and ipv6 are supported
 
 Installation:
 -------------
@@ -44,9 +51,11 @@ Set to "1" to enable firewalld:
 ---
 
 URLs for ipv4 and/or ipv6 block files, you probably do not have to change these.
-You can also use ipverse.net instead if ipdeny.com is down (see [script](ipset-country) for url's).
+
+To use ipverse.net instead of ipdeny.com see [script](ipset-country)
 
 `IPBLOCK_URL_V4="http://www.ipdeny.com/ipblocks/data/aggregated"`
+
 `IPBLOCK_URL_V6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"`
 
 ---
