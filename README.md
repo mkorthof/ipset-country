@@ -27,6 +27,7 @@ Configuration:
 
 If needed change OS using `DISTRO` setting. Default is "auto" which should be OK.
 
+Options are:
 - "auto", "debian" or "redhat"
 - "manual"
   - `confdir="/etc/iptables"` (example)
