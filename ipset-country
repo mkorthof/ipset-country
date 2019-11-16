@@ -1,9 +1,10 @@
 #!/bin/sh
 
-# ipset-country (20190905)
+# ipset-country (20191116)
 # ========================
 
 # Block countries using iptables + ipset + ipdeny.com
+# Also works with ipverse.com and other providers
 
 # INSTALLATION:
 # -------------
@@ -13,9 +14,9 @@
 # - to run on boot you can also add it to e.g. /etc/rc.local or systemd
 # - use argument "force" to load unchanged zonefiles instead of skipping
 
-# NOTE: this script will insert an iptables REJECT rule for ipset
-# also available, and more extensive:
-# https://github.com/tokiclover/dotfiles/blob/master/bin/ips.bash
+# NOTE: - this script will insert an iptables REJECT rule for ipset
+#       - alternative script "ips.bash" from tokiclover:
+#         https://github.com/tokiclover/dotfiles/blob/master/bin/ips.bash
 
 # CONFIGURATION:
 # --------------
@@ -36,27 +37,47 @@ FIREWALLD=0
 # enable firewalld on rhel 8 at your own risk [0/1]
 FWD_RH8=0
 
-# also block ipv6, also needs IPDENY_URL_6 set
+# check zone file md5sums [0/1]
+MD5CHECK=1
+# block ipv4, ipv6 or both [0/1]
+IPV4=1
+# for ipv6 also set IPBLOCK_URL_V6
 IPV6=1
 # run iptables-restore first before adding rules [0/1]
 RESTORE=0
 # create logips chain to log rejects [0/1]
 LOGIPS=1
-# run even if zonefile is the same as current [0/1]
-FORCE=0
-# ( same as ./ipset-country force )
 
-# Urls for ipv4 and/or ipv6 block files (aggregated is smaller)
-# to use full ipv4 zone files: "www.ipdeny.com/ipblocks/data/countries"
-# NOTE: seems ipdeny has no md5sums for aggregated ipv6 zone files
-IPDENY_URL="http://www.ipdeny.com/ipblocks/data/aggregated"
-IPDENY_URL_6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"
+# run even if zonefile is the same as current [0/1]
+# ( same as ./ipset-country force )
+FORCE=0
+
+# URLs for ipv4 and/or ipv6 block files (aggregated is smaller)
+#
+#   IPdeny:
+#   - "http://www.ipdeny.com/ipblocks/data/aggregated"
+#   - "http://www.ipdeny.com/ipv6/ipaddresses/blocks"
+#   - or ipdeny.com/ipblocks/data/countries for full ipv4 zone files
+#
+#   IPverse:
+#   - "http://ipverse.net/ipblocks/data/countries"
+#
+#   Other block list providers:
+#   - Should work if they offer (iso)country zone files with CIDR's
+#
+# NOTE: seems ipdeny has no md5sums for aggregated ipv6 zone files and
+#       ipverse.com does not offer them at all (this autosets MD5CHECK=0)
+#
+IPBLOCK_URL="http://ipverse.net/ipblocks/data/countries"
+#IPBLOCK_URL_V4="http://www.ipdeny.com/ipblocks/data/aggregated"
+#IPBLOCK_URL_V6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"
 
 # Log to file, or to disable logging use: "/dev/null 2>&1"
 LOG="/var/log/ipset-country.log"
-# log level numer (see man syslog)
-LOGLVL=6
+
+# log level number (see man syslog)
 # ( 0=emerg 1=alert crit=2 3=err 4=warning 5=notice 5 6=info 7=debug )
+LOGLVL=6
 
 # END OF CONFIG
 # -------------
@@ -111,7 +132,8 @@ func_dist_auto() {
 # set iptables and other vars
 func_vars() {
   if [ "$proto" = "ipv6" ]; then
-    ipt="ip6"; ips_f="inet6"
+    ipt="ip6"
+    ips_f="inet6"
     rj="icmp6-port-unreachable"
     case $DISTRO in
       debian)
@@ -124,22 +146,22 @@ func_vars() {
         ;;
     esac
   else
-    ipt="ip"; ips_f="inet"
+    ipt="ip"
+    ips_f="inet"
     rj="icmp-port-unreachable"
     case $DISTRO in
       debian)
-        confdir="/etc"
-        rulesfile="/etc/iptables.up.rules"
-        test -d "/etc/iptables" && confdir="/etc/iptables"
-        test -f "${confdir}/rules.v4" && rulesfile="${confdir}/rules.v4"
+          confdir="/etc"; rulesfile="/etc/iptables.up.rules"
+          test -d "/etc/iptables" && confdir="/etc/iptables"
+          test -f "${confdir}/rules.v4" && rulesfile="${confdir}/rules.v4"
         ;;
       redhat)
-        confdir="/etc/sysconfig"
-        rulesfile="${confdir}/iptables"
+          confdir="/etc/sysconfig"
+          rulesfile="${confdir}/iptables"
         ;;
     esac
   fi
-  if [ -x "/usr/sbin/iptables-legacy" ]; then
+  if [ -x "/usr/sbin/${ipt}tables-legacy" ]; then
     iptables="/usr/sbin/${ipt}tables-legacy"
     iptrestore="/usr/sbin/${ipt}tables-legacy-restore"
     iptsave="/usr/sbin/${ipt}tables-legacy-save"
@@ -151,17 +173,17 @@ func_vars() {
   if [ "$FIREWALLD" -eq 1 ]; then
     frontend="firewalld"
     if [ "$DISTRO" = "redhat" ] && [ "$FWD_RH8" -ne 1 ]; then
-      if grep -iq "red hat enterprise linux 8.0" /etc/os-release; then
+      if grep -Eiq "red hat enterprise linux 8.0|centos linux 8" /etc/os-release; then
         echo
-        echo "WARNING: there are issues with firewalld on RHEL 8 which can cause your firewall to"
+        echo "WARNING: there are issues with firewalld on CentOS/RHEL 8 which can cause your firewall"
         echo "         to break resulting in being locked out. This can possibly only be fixed by"
         echo "         running 'nft flush ruleset'. set FWD_RH8=1 to disable this message"
         echo 
-        printf "Press 'Y' [ENTER] to continue "
+        printf "Press any key to quit or 'Y' then [ENTER] to continue"
         read a
         if ! echo "$a" | grep -iq y; then exit 1; fi
         FWD_RH8=1
-        func_msg m:stdout "Continuing..."
+        func_msg m:stdout "continuing..."
       fi
     fi
   else
@@ -173,14 +195,30 @@ func_vars() {
   fi
 }
 
-# download zone file and get md5sum
+# download zone file and get md5sum if enabled
 func_zf() {
   zonefile="${ctyiso}.zone"
-  if echo "$url" | grep -q aggregated; then
-    zonefile="${ctyiso}-aggregated.zone"
+  if echo "$url" | grep -iq "ipdeny\.com"; then
+    if echo "$url" | grep -q "aggregated"; then
+      zonefile="${ctyiso}-aggregated.zone"
+      if [ "$proto" = "ipv6" ]; then
+        MD5CHECK=0
+      fi
+    fi
   fi
-  $getfile "/tmp/${proto}-${zonefile}.$$" "$url/$zonefile"
-  md5src="$( $getfile - "$url/MD5SUM" | grep "$zonefile" | cut -d" " -f 1 )"
+  zoneurl="$zonefile"
+  if echo "$url" | grep -iq "ipverse\.net"; then
+    MD5CHECK=0
+    if [ "$proto" = "ipv6" ]; then
+      zoneurl="${ctyiso}-ipv6.zone"
+    fi
+  fi
+  $getfile "/tmp/${proto}-${zonefile}.$$" "${url}/${zoneurl}"
+  # check downloaded zone file against MD5SUM
+  if [ "$MD5CHECK" -eq 1 ]; then
+    md5src="$( $getfile - "$url/MD5SUM" | grep "$zonefile" | cut -d" " -f 1 )"
+  fi
+  # check if zone file is the same as current
   md5chk="$( md5sum "/tmp/${proto}-${zonefile}.$$" | cut -d" " -f 1 )"
   if [ -f "${confdir}/${proto}-${zonefile}" ]; then
     md5cur="$( md5sum "${confdir}/${proto}-${zonefile}" 2>/dev/null | cut -d" " -f 1 )"
@@ -226,7 +264,8 @@ func_ipt_log(){
     func_msg "$frontend: create log chain - $ipt_n"
     func_msg "$frontend: append log rule - $ipt_l"
     func_msg "$frontend: append reject rule - $ipt_j"
-    [ "$proto" = "ipv4" ] && logips_run=1; [ "$proto" = "ipv6" ] && logip6_run=1
+    [ "$proto" = "ipv4" ] && logips_run=1
+    [ "$proto" = "ipv6" ] && logip6_run=1
   fi
 }
 
@@ -264,8 +303,8 @@ func_ips_new(){
 
 # add blocks to ipset
 func_ips_add() {
-  i=0; while read -r l; do
-    ipset -A -exist -quiet "${proto}-${ctyname}" "$l" && i=$((i+1)) || echo "NOK: \"${proto}-${ctyname}\" - $i - $l"
+  i=0; while read -r cidr; do
+    ipset -A -exist -quiet "${proto}-${ctyname}" "$cidr" && i=$((i+1)) || echo "NOK: \"${proto}-${ctyname}\" - $i - $cidr"
   done < "${confdir}/${proto}-${zonefile}" >/dev/null 2>&1 && ips_a="OK" || ips_a="NOK"
   [ "$i" -eq 0 ] && ips_a="NOK"
   func_msg "ipset: add \"${proto}-${zonefile}\" to \"${proto}-${ctyname}\" - $ips_a - $i entries"
@@ -289,8 +328,14 @@ func_firewalld() {
 
 # preflight checks
 
-if [ "$( id -u )" -ne 0 ]; then func_msg m:stdout "$0 needs root to run"; exit 1; fi
-if echo "$1" | grep -iq force; then FORCE=1; fi
+if [ "$( id -u )" -ne 0 ]; then
+  echo "Script \"$( basename "$0" )\" needs root to run"
+  exit 1
+fi
+if echo "$1" | grep -iq force; then
+  FORCE=1
+fi
+
 [ "$DISTRO" = "auto" ] && func_dist_auto
 func_vars
 
@@ -324,53 +369,72 @@ fi
 [ -z "$getfile" ] && { func_msg m:stdout "curl or wget not found, exiting..."; exit 1; }
 which md5sum >/dev/null 2>&1 || { func_msg m:stdout "md5sum not found, exiting..."; exit 1; }
 
-[ "$IPV6" -eq 1 ] && IPDENY_URL="$IPDENY_URL $IPDENY_URL_6"
-if [ "$LOGIPS" -eq 1 ] && [ "$FIREWALLD" -ne 1 ]; then
-  # default is ipv4 'iptables'
+# main loop: block country ip
+func_block_ip() {
+  SAVE_IFS="$IFS"
+  IFS=";"
+  for cty in $COUNTRY; do
+    cty="$( echo "$cty" | tr '[:upper:]' '[:lower:]' )"
+    ctyiso="$( echo "$cty" | cut -d',' -f 1 | sed -r -e 's/(^ +| +$)//g' )"
+    ctyname="$( echo "$cty" | cut -d',' -f 2 | sed -r -e 's/(^ +| +$)//g' -e 's/ /_/g' )"
+    if [ "$ctyname" != "" ]; then
+      IFS="$SAVE_IFS"
+      for url in $1; do
+        # if its an ipv6 zonefile url: change protocol
+        if echo "$url" | grep -q "ipv6"; then
+          proto="ipv6"
+        fi
+        func_vars
+        func_zf
+        if [ "$MD5CHECK" -eq 0 ] || [ "$md5src" = "$md5chk" ]; then
+          if [ "$zf" != "SKIP" ]; then
+            if [ "$FIREWALLD" -eq 1 ]; then
+              func_firewalld
+            else
+              func_ips_new
+              [ "$RESTORE" -eq 1 ] && func_ipt_res
+              func_ips_add
+              func_ipt_add
+            fi
+          fi
+        else
+          func_msg "zonefile: md5 \"${proto}-${zonefile}\" mismatch\""
+        fi
+      done
+    else
+      func_msg m:stdout "incorrect country setting\""
+    fi
+    [ -f "/tmp/${proto}-${zonefile}.$$" ] && rm "/tmp/${proto}-${zonefile}.$$"
+  done
+}
+
+if [ "$IPV4" -eq 1 ]; then
   proto="ipv4"
-  func_ipt_log
-  # for ipv6 use 'ip6tables'
-  if [ "$IPV6" -eq 1 ]; then
-    proto="ipv6"; func_vars; func_ipt_log
+  if [ "$LOGIPS" -eq 1 ] && [ "$FIREWALLD" -ne 1 ]; then
+    func_vars
+    func_ipt_log
   fi
+  if [ -z "$IPBLOCK_URL_V4" ]; then
+    IPBLOCK_URL_V4="$IPBLOCK_URL"
+  fi
+  func_block_ip "$IPBLOCK_URL_V4"
 fi
 
-# main loop 'COUNTRY'
-
-SAVE_IFS="$IFS"
-IFS=";"
-for cty in $COUNTRY; do
-  cty="$( echo "$cty" | tr '[:upper:]' '[:lower:]' )"
-  ctyiso="$( echo "$cty" | cut -d',' -f 1 | sed -r -e 's/(^ +| +$)//g' )"
-  ctyname="$( echo "$cty" | cut -d',' -f 2 | sed -r -e 's/(^ +| +$)//g' -e 's/ /_/g' )"
-  if [ "$ctyname" != "" ]; then
-    proto="ipv4"
-    IFS="$SAVE_IFS"
-    for url in $IPDENY_URL; do
-      # if its an ipv6 zonefile url change protocol
-      if echo "$url" | grep -q ipv6; then proto="ipv6"; fi
-      func_vars
-      func_zf
-      if [ "$md5src" = "$md5chk" ]; then
-        if [ "$zf" != "SKIP" ]; then
-          if [ "$FIREWALLD" -eq 1 ]; then
-            func_firewalld
-          else
-            func_ips_new
-            [ "$RESTORE" -eq 1 ] && func_ipt_res
-            func_ips_add
-            func_ipt_add
-          fi
-        fi
-      else
-        func_msg "zonefile: md5 \"${proto}-${zonefile}\" mismatch\""
-      fi
-    done
-  else
-    func_msg m:stdout "incorrect country setting\""
+# ipv6 uses 'ip6tables'
+if [ "$IPV6" -eq 1 ]; then
+  proto="ipv6"
+  if [ "$LOGIPS" -eq 1 ] && [ "$FIREWALLD" -ne 1 ]; then
+    func_vars
+    func_ipt_log
   fi
-  [ -f "/tmp/${proto}-${zonefile}.$$" ] && rm "/tmp/${proto}-${zonefile}.$$"
-done
+  if [ -z "$IPBLOCK_URL_V6" ]; then
+    IPBLOCK_URL_V6="$IPBLOCK_URL"
+  fi
+  if [ -z "$IPBLOCK_URL_V6" ] && [ -z "$IP_BLOCK_URL" ]; then
+    IPBLOCK_URL_V6="$IPBLOCK_URL_V4"
+  fi
+  func_block_ip "$IPBLOCK_URL_V6"
+fi
 
 if [ "$FIREWALLD" -eq 1 ]; then
   func_msg m:nonl m:stdout "firewalld: reload - "

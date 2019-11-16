@@ -5,7 +5,7 @@ Supports RH, Debian with iptables and/or firewalld - both ipv4 and ipv6
 
 This used to be a [gist](https://gist.github.com/mkorthof/3033ff64c4a5b4bd31336d422104d543) but was moved here instead
 
-INSTALLATION:
+Installation:
 -------------
 
 - setup firewall if you have not done so yet, at least INPUT chain
@@ -15,7 +15,7 @@ INSTALLATION:
 
 NOTE: this script will insert an iptables REJECT rule for ipset
 
-CONFIGURATION:
+Configuration:
 --------------
 
 Set OS using `DISTRO` setting (default is "auto)"
@@ -43,10 +43,11 @@ Set to "1" to enable firewalld:
 
 ---
 
-Urls for ipv4 and/or ipv6 block files, you probably do not have to change these:
+URLs for ipv4 and/or ipv6 block files, you probably do not have to change these.
+You can also use ipverse.net instead if ipdeny.com is down (see [script](ipset-country) for url's).
 
-`IPDENY_URL="http://www.ipdeny.com/ipblocks/data/aggregated"`
-`IPDENY_URL_6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"`
+`IPBLOCK_URL_V4="http://www.ipdeny.com/ipblocks/data/aggregated"`
+`IPBLOCK_URL_V6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"`
 
 ---
 
@@ -58,7 +59,7 @@ Log file location:
 
 Other options are explained in [script](ipset-country)
 
-IPSET:
+IPset:
 ------
 
 Useful ipset commands:
@@ -68,16 +69,17 @@ Useful ipset commands:
 - `ipset flush`
 - `ipset destroy`
 
-CHANGES:
+Changes:
 --------
 
+- [20191116] added ipverse support, md5check option
 - [20190905] tested on debian 10 and centos 7
 - [20190905] blocking multiple countries should work
 - [20190905] it will check if INPUT chain exists in iptables
 - [20190905] cleaned it up a bit
 - [20190905] using firewalld is also supported now
 
-OTHER:
+Other:
 ------
 
 Also available: [github.com/tokiclover/dotfiles/blob/master/bin/ips.bash](https://github.com/tokiclover/dotfiles/blob/master/bin/ips.bash)
