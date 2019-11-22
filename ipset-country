@@ -112,7 +112,7 @@ func_msg() {
   cdate="$( date +%F\ %T )"
   msg="$( echo $* | sed -E 's/m:(nonl|stdout|tee) //g' )"
   if [ "$tee" -eq 1 ]; then 
-    printf "%s %s%s" "$cdate" "$msg" "$eol" | m:tee -a "$LOG"
+    printf "%s %s%s" "$cdate" "$msg" "$eol" | tee -a "$LOG"
   else
     printf "%s %s%s" "$cdate" "$msg" "$eol" >> $LOG
   fi
