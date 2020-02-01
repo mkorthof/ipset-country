@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# ipset-country (20191116)
+# ipset-country (20200129)
 # ========================
 
 # Block countries using iptables + ipset + ipdeny.com
@@ -14,9 +14,8 @@
 # - to run on boot you can also add it to e.g. /etc/rc.local or systemd
 # - use argument "force" to load unchanged zonefiles instead of skipping
 
-# NOTE: - this script will insert an iptables REJECT rule for ipset
-#       - alternative script "ips.bash" from tokiclover:
-#         https://github.com/tokiclover/dotfiles/blob/master/bin/ips.bash
+# NOTE: this script will insert an iptables REJECT or DROP rule for ipset,
+# make sure you do not lock yourself out in case of issues on a remote system
 
 # CONFIGURATION:
 # --------------
@@ -32,24 +31,26 @@ DISTRO="auto"
 
 COUNTRY="CN,China; RU,Russia"
 
-# use firewalld to create chains, rules and ipsets [0/1]
+# Use firewalld to create chains, rules and ipsets [0/1]
 FIREWALLD=0
-# enable firewalld on rhel 8 at your own risk [0/1]
+# Enable firewalld on centos/rhel 8 at your own risk [0/1]
 FWD_RH8=0
 
-# check zone file md5sums [0/1]
-MD5CHECK=1
-# block ipv4, ipv6 or both [0/1]
+# Block ip's using "reject" or "drop"
+BLOCK="reject"
+# Block ipv4, ipv6 or both [0/1]
+# For ipv6 also set IPBLOCK_URL_V6
 IPV4=1
-# for ipv6 also set IPBLOCK_URL_V6
 IPV6=1
-# run iptables-restore first before adding rules [0/1]
+# Run iptables-restore first before adding rules [0/1]
 RESTORE=0
-# create logips chain to log rejects [0/1]
+# Create logips chain to log blocks [0/1]
 LOGIPS=1
+# Check zone file md5sums [0/1]
+MD5CHECK=1
 
-# run even if zonefile is the same as current [0/1]
-# ( same as ./ipset-country force )
+# Run even if zonefile is the same as current [0/1]
+# ( same as './ipset-country force' )
 FORCE=0
 
 # URLs for ipv4 and/or ipv6 block files (aggregated is smaller)
@@ -75,16 +76,17 @@ IPBLOCK_URL_V6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"
 # Log to file, or to disable logging use: "/dev/null 2>&1"
 LOG="/var/log/ipset-country.log"
 
-# log level number (see man syslog)
+# Log level number (see man syslog)
 # ( 0=emerg 1=alert crit=2 3=err 4=warning 5=notice 5 6=info 7=debug )
 LOGLVL=6
 
 # END OF CONFIG
 # -------------
 
+# note: commands and script variables
 # ipset cmds  : ipset list | test setname <ip> | flush | destroy
 # rc ipset    : ips_a = ipset add, ips_c = create, ips_f = protocol family
-# rc iptables : ipt_i = insert rule,  ipt_j = reject rule, ipt_n = new chain
+# rc iptables : ipt_i = insert rule, ipt_b = block rule, ipt_n = new chain
 #               ipt_l = log rule, ipt_r = restore
 # executables : ipt = ipt{,6}tables, iptrestore = ip{,6}tables-restore
 #               iptsave = ip{,6}tables-save
@@ -94,7 +96,10 @@ if [ ! -w "$LOG" ]; then
   LOG="/tmp/$(basename -s '.sh' "$0").log"
 fi
 
-if echo "$1" | grep -iq debug; then LOG=/dev/stdout; fi
+if echo "$1" | grep -iq debug; then
+  LOG=/dev/stdout
+fi
+
 iptr_run=0; ip6r_run=0; logips_run=0; logip6_run=0
 nl='
 '
@@ -110,7 +115,7 @@ func_msg() {
     esac
   done
   cdate="$( date +%F\ %T )"
-  msg="$( echo $* | sed -E 's/m:(nonl|stdout|tee) //g' )"
+  msg="$( echo "$@" | sed -E 's/m:(nonl|stdout|tee) //g' )"
   if [ "$tee" -eq 1 ]; then 
     printf "%s %s%s" "$cdate" "$msg" "$eol" | tee -a "$LOG"
   else
@@ -175,12 +180,14 @@ func_vars() {
     if [ "$DISTRO" = "redhat" ] && [ "$FWD_RH8" -ne 1 ]; then
       if grep -Eiq "red hat enterprise linux 8.0|centos linux 8" /etc/os-release; then
         echo
-        echo "WARNING: there are issues with firewalld on CentOS/RHEL 8 which can cause your firewall"
-        echo "         to break resulting in being locked out. This can possibly only be fixed by"
-        echo "         running 'nft flush ruleset'. set FWD_RH8=1 to disable this message"
+        echo "WARNING: There are issues with firewalld on CentOS/RHEL 8 which can cause"
+        echo "         your firewall to break resulting in being locked out."
+        echo "         Adding large ipsets apparently can takes a VERY long time. To abort you need"
+        echo "         remote console access and run 'pkill firewal-cmd; nft flush ruleset'"
+        echo "         Set FWD_RH8=1 to disable this message"
         echo 
-        printf "Press any key to quit or 'Y' then [ENTER] to continue"
-        read a
+        printf "Press any key to quit or 'Y' then [ENTER] to continue "
+        read -r a
         if ! echo "$a" | grep -iq y; then exit 1; fi
         FWD_RH8=1
         func_msg m:stdout "continuing..."
@@ -246,7 +253,7 @@ func_ipt_res() {
   fi
 }
 
-# check if logips chain and reject rules already exist, else create them - once
+# check if logips chain and block rules already exist, else create them - once
 func_ipt_log(){
   if { [ "$proto" = "ipv4" ] && [ "$logips_run" -ne 1 ]; } ||
      { [ "$proto" = "ipv6" ] && [ "$logip6_run" -ne 1 ]; }
@@ -254,16 +261,29 @@ func_ipt_log(){
     if ! $iptsave | grep -q "LOGIPS"; then
       $iptables -N LOGIPS && ipt_n="OK" || ipt_n="NOK"
     else ipt_n="already exists"; fi
-    if ! $iptsave | grep -q "LOGIPS.*log"; then
-      $iptables -A LOGIPS -m limit --limit 10/min -j LOG --log-prefix "IPS REJECT: " --log-level $LOGLVL && \
+    if ! $iptsave | grep -q "LOGIPS.*LOG"; then
+      $iptables -A LOGIPS -m limit --limit 10/min -j LOG --log-prefix "IPS BLOCK: " --log-level $LOGLVL && \
       ipt_l="OK" || ipt_l="NOK"
     else ipt_l="already exists"; fi
-    if ! $iptsave | grep -q "LOGIPS.*reject"; then
-      $iptables -A LOGIPS -j REJECT --reject-with "$rj" && ipt_j="OK" || ipt_j="NOK"
-    else ipt_j="already exists"; fi
+    case "$BLOCK" in
+      drop)
+        if ! $iptsave | grep -q "LOGIPS.*REJECT"; then
+          if ! $iptsave | grep -q "LOGIPS.*DROP"; then
+            $iptables -A LOGIPS -j DROP && ipt_b="OK" || ipt_b="NOK"
+          else ipt_b="DROP already exists"; fi
+        else ipt_b="REJECT already exists"; fi
+      ;;
+      reject|*)
+        if ! $iptsave | grep -q "LOGIPS.*DROP"; then
+          if ! $iptsave | grep -q "LOGIPS.*REJECT"; then
+            $iptables -A LOGIPS -j REJECT --reject-with "$rj" && ipt_b="OK" || ipt_b="NOK"
+          else ipt_b="REJECT already exists"; fi
+        else ipt_b="DROP already exists"; fi
+      ;;
+    esac
     func_msg "$frontend: create log chain - $ipt_n"
     func_msg "$frontend: append log rule - $ipt_l"
-    func_msg "$frontend: append reject rule - $ipt_j"
+    func_msg "$frontend: append block rule - $ipt_b"
     [ "$proto" = "ipv4" ] && logips_run=1
     [ "$proto" = "ipv6" ] && logip6_run=1
   fi
@@ -281,14 +301,23 @@ func_ipt_add() {
     $iptables -I INPUT "$rulenum" -p tcp -m set --match-set "${proto}-${ctyname}" src -j LOGIPS && \
     ipt_i="OK" || ipt_i="NOK"
   fi
-  # if logips chain does not exist - because logips=0 or previous cmds failed - insert ipset reject rule
+  # if logips chain does not exist - because logips=0 or previous cmds failed - insert ipset block rule
   if ! $iptsave | grep -q "\\-A LOGIPS" || test $LOGIPS -eq 0; then
     # also check if ipset rule doesnt exist
-    if $iptsave | grep -q "match-set.*${proto}-${ctyname}.*REJECT"; then
-      ipt_i="already exists"
-    else
-      $iptables -I INPUT "$rulenum" -p tcp -m set --match-set "${proto}-${ctyname}" src -j REJECT --reject-with "$rj" && \
-        ipt_i="OK" || ipt_i="NOK"
+    if [ "$BLOCK" = "reject" ]; then
+      if $iptsave | grep -q "match-set.*${proto}-${ctyname}.*REJECT"; then
+        ipt_i="already exists"
+      else
+        $iptables -I INPUT "$rulenum" -p tcp -m set --match-set "${proto}-${ctyname}" src -j REJECT --reject-with "$rj" && \
+          ipt_i="OK" || ipt_i="NOK"
+      fi
+    elif [ "$BLOCK" = "drop" ]; then
+      if $iptsave | grep -q "match-set.*${proto}-${ctyname}.*DROP"; then
+        ipt_i="already exists"
+      else
+        $iptables -I INPUT "$rulenum" -p tcp -m set --match-set "${proto}-${ctyname}" src -j DROP && \
+          ipt_i="OK" || ipt_i="NOK"
+      fi
     fi
   fi
   func_msg "$frontend: insert ipset rule - $ipt_i"
@@ -321,8 +350,8 @@ func_firewalld() {
     func_msg "ipset: add \"${proto}-${zonefile}\" to \"${proto}-${ctyname}\" - $i entries"
   }
   if ! $firewallcmd --zone=drop --list-sources | grep -q "${proto}-${ctyname}"; then
-    func_msg m:nonl m:tee "$frontend: add source - "
-    $firewallcmd --permanent --zone=drop --add-source="ipset:${proto}-${ctyname}" >>"$LOG" 2>&1
+    func_msg m:nonl m:tee "$frontend: add source -"
+    { $firewallcmd --permanent --zone=drop --add-source="ipset:${proto}-${ctyname}" && echo; } >>"$LOG" 2>&1
   fi
 }
 
@@ -340,6 +369,7 @@ fi
 func_vars
 
 if [ "$FIREWALLD" -eq 1 ]; then
+  # shellcheck disable=SC2230
   firewallcmd="$( which firewall-cmd 2>/dev/null )"
   test -x "$firewallcmd" && fwd_c="OK" || fwd_c="NOK - NOT FOUND"
   func_msg "$frontend: firewall-cmd - $fwd_c"
@@ -358,15 +388,17 @@ else
     func_msg m:tee "exiting..."; exit 1
   fi
 fi
+# shellcheck disable=SC2230
 ipset="$( which ipset 2>/dev/null )"
 test -x "$ipset" && ips_e="OK" || ips_e="NOK - NOT FOUND"
 if [ "$ips_e" != "OK" ]; then
   func_msg m:tee "ipset: $ips_e, exiting..."; exit 1
 fi
   
-{ getfile=$( which curl 2>/dev/null ) && getfile="$getfile -s -o"; } || \
+# shellcheck disable=SC2230
 { getfile=$( which wget 2>/dev/null ) && getfile="$getfile -q -O"; }
 [ -z "$getfile" ] && { func_msg m:stdout "curl or wget not found, exiting..."; exit 1; }
+# shellcheck disable=SC2230
 which md5sum >/dev/null 2>&1 || { func_msg m:stdout "md5sum not found, exiting..."; exit 1; }
 
 # main loop: block country ip
@@ -437,7 +469,7 @@ if [ "$IPV6" -eq 1 ]; then
 fi
 
 if [ "$FIREWALLD" -eq 1 ]; then
-  func_msg m:nonl m:stdout "firewalld: reload - "
+  func_msg m:nonl m:stdout "firewalld: reload -"
   $firewallcmd --reload >>"$LOG" 2>&1
 fi
 func_msg m:stdout "ipset-country: done"
