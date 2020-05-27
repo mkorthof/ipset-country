@@ -16,7 +16,7 @@ _Please do not add Gist comments, but create an issue [here](https://github.com/
 Installation
 ------------
 
-- Setup firewall if you have not done so yet, at least INPUT chain
+- Setup firewall if you have not done so yet, **at least INPUT chain**
 - Run this script from cron, e.g. /etc/cron.daily or a [systemd timer](https://www.freedesktop.org/software/systemd/man/systemd.timer.html)
 - To run on boot you can also add it to e.g. /etc/rc.local or systemd
 - Use argument "force" to load unchanged zonefiles instead of skipping

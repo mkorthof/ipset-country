@@ -41,7 +41,7 @@ BLOCK="reject"
 # Block ipv4, ipv6 or both [0/1]
 # For ipv6 also set IPBLOCK_URL_V6
 IPV4=1
-IPV6=1
+IPV6=0
 # Run iptables-restore first before adding rules [0/1]
 RESTORE=0
 # Create logips chain to log blocks [0/1]
@@ -49,7 +49,7 @@ LOGIPS=1
 # Check zone file md5sums [0/1]
 MD5CHECK=1
 
-# Run even if zonefile is the same as current [0/1]
+# Run even if zonefile is unchanged [0/1]
 # ( same as './ipset-country force' )
 FORCE=0
 
@@ -90,15 +90,6 @@ LOGLVL=6
 #               ipt_l = log rule, ipt_r = restore
 # executables : ipt = ipt{,6}tables, iptrestore = ip{,6}tables-restore
 #               iptsave = ip{,6}tables-save
-
-if [ ! -w "$LOG" ]; then
-  echo "Log \"$LOG\" not writable, using \"/tmp/$(basename -s '.sh' "$0").log\" instead"
-  LOG="/tmp/$(basename -s '.sh' "$0").log"
-fi
-
-if echo "$1" | grep -iq debug; then
-  LOG=/dev/stdout
-fi
 
 iptr_run=0; ip6r_run=0; logips_run=0; logip6_run=0
 nl='
@@ -323,7 +314,7 @@ func_ipt_add() {
   func_msg "$frontend: insert ipset rule - $ipt_i"
 }
 
-# create a new ip set using type hash
+# create a new ipset using type hash
 func_ips_new(){
   { ipset list -terse "${proto}-${ctyname}" >/dev/null 2>&1 || ipset create "${proto}-${ctyname}" hash:net family ${ips_f}; } && \
     ips_c="OK" || ips_c="NOK"
@@ -357,12 +348,22 @@ func_firewalld() {
 
 # preflight checks
 
+if echo "$*" | grep -Eq "\-h|help"; then
+  echo "Please check README.md"; exit
+fi
 if [ "$( id -u )" -ne 0 ]; then
   echo "Script \"$( basename "$0" )\" needs root to run"
   exit 1
 fi
 if echo "$1" | grep -iq force; then
   FORCE=1
+fi
+if [ ! -w "$( dirname "$LOG" )" ]; then
+  echo "Log \"$LOG\" not writable, using \"/tmp/$(basename -s '.sh' "$0").log\" instead"
+  LOG="/tmp/$(basename -s '.sh' "$0").log"
+fi
+if echo "$1" | grep -iq debug; then
+  LOG=/dev/stdout
 fi
 
 [ "$DISTRO" = "auto" ] && func_dist_auto
@@ -401,7 +402,7 @@ fi
 # shellcheck disable=SC2230
 which md5sum >/dev/null 2>&1 || { func_msg m:stdout "md5sum not found, exiting..."; exit 1; }
 
-# main loop: block country ip
+# main loop: handle country here
 func_block_ip() {
   SAVE_IFS="$IFS"
   IFS=";"
