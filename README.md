@@ -1,6 +1,6 @@
 # ipset-country
 
-## Block countries using iptables + ipset + ipdeny.com
+## Block or allow countries using iptables, ipset and ipdeny.com
 
 ---
 
@@ -16,7 +16,7 @@ _Please do not add Gist comments, but create an issue [here](https://github.com/
 Installation
 ------------
 
-- Setup firewall if you have not done so yet, **at least INPUT chain**
+- Setup firewall if you have not done so yet, **at least INPUT chain** is needed
 - Run this script from cron, e.g. /etc/cron.daily or a [systemd timer](https://www.freedesktop.org/software/systemd/man/systemd.timer.html)
 - To run on boot you can also add it to e.g. /etc/rc.local or systemd
 - Use argument "force" to load unchanged zonefiles instead of skipping
@@ -48,15 +48,29 @@ Example:
 
 ---
 
-**Firewalld:**  
+**Firewalls and options:** 
+
+Iptables and ipset are used by default to create the chains, rules and ipsets. If firewalld frontend is enabled it will be used instead.
+
+- Blacklist: block specified Countries, set `MODE` to "reject" or "drop"
+- Whitelist: allow specified Countries and block all others, set "accept"
+
+Iptables:
+
+Set target to use when ip matches country: "accept", "drop" or "reject". Default is `MODE="reject"`
+
+FirewallD:
+
 Set this option to "1" to enable firewalld: `FIREWALLD=0`
+
+Set `FIREWALLD_MODE=0` to use the default Blacklist mode (uses 'drop' zone). Change to "1" for Whitelist ('public' zone). _See MODE above for more information_
 
 * _NOTE:_
 There are issues with firewalld on CentOS/RHEL 8 which can cause your firewall to break resulting in being locked out. Adding large ipsets apparently can takes a VERY long time. To abort you need remote console access and run `pkill firewal-cmd; nft flush ruleset`
 
 ---
 
-**Blocklist provider:**
+**Block list providers:**
 
 Set URLs for ipv4 and/or ipv6 block files, you probably do not have to change these.  
 To use [ipverse.net](http://ipverse.net) instead of [ipdeny.com](https://ipdeny.com) and for more details see [script](ipset-country)
@@ -71,7 +85,7 @@ In case you want to change file location set: `LOG="/var/log/ipset-country.log"`
 
 ---
 
-**Other options are explained in [ipset-country.sh script](ipset-country)**
+**All options are explained in [ipset-country.sh script](ipset-country)**
 
 IPset
 ------
@@ -86,6 +100,7 @@ Useful ipset commands:
 Changes
 -------
 
+- [20200605] added Blacklist/Whitelist mode (#3)
 - [20200129] added option to DROP instead of REJECT (#1)
 - [20191116] added ipverse support, md5check option
 - [20190905] tested on debian 10 and centos 7
