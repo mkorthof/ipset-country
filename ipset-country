@@ -20,7 +20,7 @@
 # CONFIGURATION:
 # --------------
 
-# OS: "auto", "manual", "debian", sles or "redhat" (default is auto)
+# OS: "auto", "manual", "debian", "sles" or "redhat" (default is auto)
 # Manual example: confdir="/etc/iptables", rulesfile="${confdir}/myrules"
 
 DISTRO="auto"
