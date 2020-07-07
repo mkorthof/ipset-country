@@ -30,6 +30,7 @@ DISTRO="auto"
 # Example: "CN,China; US,United States; RU,Russia"
 
 COUNTRY="CN,China; RU,Russia"
+# TO BE ADDED: ;KP,Korea; RU,Russia"
 
 # ---[ FIREWALLS AND OPTIONS  ]-------------------------------------------------
 # Iptables and ipset are used by default to create the chains, rules and ipsets
@@ -145,8 +146,8 @@ func_vars() {
         rulesfile="${confdir}/ip6tables"
         ;;
       sles)
-          confdir="/etc/sysconfig"
-          rulesfile="${confdir}/iptables"
+          confdir="/etc/ipset-country"
+          rulesfile="${confdir}/rules"
         ;;
     esac
   else
@@ -164,31 +165,19 @@ func_vars() {
           rulesfile="${confdir}/iptables"
         ;;
       sles)
-          confdir="/etc/sysconfig"
-          rulesfile="${confdir}/iptables"
+          confdir="/etc/ipset-country"
+          rulesfile="${confdir}/rules"
         ;;
     esac
   fi
   if [ -x "/usr/sbin/${ipt}tables-legacy" ]; then
-    if [ "${DISTRO}" == "sles" ] ; then
-      iptables="/usr/sbin/${ipt}tables-legacy"
-      iptrestore="/usr/sbin/${ipt}tables-legacy-restore"
-      iptsave="/usr/sbin/${ipt}tables-legacy-save"
-    else
-      iptables="/sbin/${ipt}tables-legacy"
-      iptrestore="/sbin/${ipt}tables-legacy-restore"
-      iptsave="/sbin/${ipt}tables-legacy-save"
-    fi
+    iptables="/usr/sbin/${ipt}tables-legacy"
+    iptrestore="/usr/sbin/${ipt}tables-legacy-restore"
+    iptsave="/usr/sbin/${ipt}tables-legacy-save"
   else
-    if [ "${DISTRO}" == "sles" ] ; then
-      iptables="/usr/sbin/${ipt}tables"
-      iptrestore="/usr/sbin/${ipt}tables-restore"
-      iptsave="/usr/sbin/${ipt}tables-save"
-    else
-      iptables="/sbin/${ipt}tables"
-      iptrestore="/sbin/${ipt}tables-restore"
-      iptsave="/sbin/${ipt}tables-save"
-    fi
+    iptables="/usr/sbin/${ipt}tables"
+    iptrestore="/usr/sbin/${ipt}tables-restore"
+    iptsave="/usr/sbin/${ipt}tables-save"
   fi
   if [ "$FIREWALLD" -eq 1 ]; then
     frontend="firewalld"
@@ -512,7 +501,6 @@ func_block_ip() {
               fi
             else
               func_ips_create
-              [ "$RESTORE" -eq 1 ] && func_ipt_res
               func_ips_add
               if [ "$MODE" = "accept" ]; then
                 # whitelist
@@ -538,6 +526,7 @@ if [ "$IPV4" -eq 1 ]; then
   proto="ipv4"
   if [ "$LOGIPS" -eq 1 ] && [ "$FIREWALLD" -ne 1 ]; then
     func_vars
+    [ "$RESTORE" -eq 1 ] && func_ipt_res
     func_ipt_log
   fi
   if [ -z "$IPBLOCK_URL_V4" ]; then
@@ -551,6 +540,7 @@ if [ "$IPV6" -eq 1 ]; then
   proto="ipv6"
   if [ "$LOGIPS" -eq 1 ] && [ "$FIREWALLD" -ne 1 ]; then
     func_vars
+    [ "$RESTORE" -eq 1 ] && func_ipt_res
     func_ipt_log
   fi
   if [ -z "$IPBLOCK_URL_V6" ]; then
