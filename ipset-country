@@ -20,7 +20,7 @@
 # CONFIGURATION:
 # --------------
 
-# OS: "auto", "manual", "debian", "sles" or "redhat" (default is auto)
+# OS: "auto", "manual", "debian" or "redhat" (default is auto)
 # Manual example: confdir="/etc/iptables", rulesfile="${confdir}/myrules"
 
 DISTRO="auto"
@@ -30,7 +30,6 @@ DISTRO="auto"
 # Example: "CN,China; US,United States; RU,Russia"
 
 COUNTRY="CN,China; RU,Russia"
-# TO BE ADDED: ;KP,Korea; RU,Russia"
 
 # ---[ FIREWALLS AND OPTIONS  ]-------------------------------------------------
 # Iptables and ipset are used by default to create the chains, rules and ipsets
@@ -145,10 +144,6 @@ func_vars() {
         confdir="/etc/sysconfig"
         rulesfile="${confdir}/ip6tables"
         ;;
-      sles)
-          confdir="/etc/ipset-country"
-          rulesfile="${confdir}/rules"
-        ;;
     esac
   else
     ipt="ip"
@@ -164,10 +159,6 @@ func_vars() {
           confdir="/etc/sysconfig"
           rulesfile="${confdir}/iptables"
         ;;
-      sles)
-          confdir="/etc/ipset-country"
-          rulesfile="${confdir}/rules"
-        ;;
     esac
   fi
   if [ -x "/usr/sbin/${ipt}tables-legacy" ]; then
@@ -175,9 +166,9 @@ func_vars() {
     iptrestore="/usr/sbin/${ipt}tables-legacy-restore"
     iptsave="/usr/sbin/${ipt}tables-legacy-save"
   else
-    iptables="/usr/sbin/${ipt}tables"
-    iptrestore="/usr/sbin/${ipt}tables-restore"
-    iptsave="/usr/sbin/${ipt}tables-save"
+    iptables="/sbin/${ipt}tables"
+    iptrestore="/sbin/${ipt}tables-restore"
+    iptsave="/sbin/${ipt}tables-save"
   fi
   if [ "$FIREWALLD" -eq 1 ]; then
     frontend="firewalld"
@@ -250,10 +241,12 @@ func_ipt_res() {
   if { [ "$proto" = "ipv4" ] && [ "$iptr_run" -ne 1 ]; } ||
      { [ "$proto" = "ipv6" ] && [ "$ip6r_run" -ne 1 ]; }
   then
-    $iptrestore < "$rulesfile" && ipt_r="OK" || ipt_r="NOK"
-    func_msg "$frontend: restore - $ipt_r"
-    [ "$proto" = "ipv4" ] && iptr_run=1
-    [ "$proto" = "ipv6" ] && ip6r_run=1
+    if [ "$ipt_r" == "OK" ] ; then
+      $iptrestore < "$rulesfile" && ipt_r="OK" || ipt_r="NOK"
+      func_msg "$frontend: restore - $ipt_r"
+      [ "$proto" = "ipv4" ] && iptr_run=1
+      [ "$proto" = "ipv6" ] && ip6r_run=1
+    fi
   fi
 }
 
@@ -501,6 +494,7 @@ func_block_ip() {
               fi
             else
               func_ips_create
+              [ "$RESTORE" -eq 1 ] && func_ipt_res
               func_ips_add
               if [ "$MODE" = "accept" ]; then
                 # whitelist
@@ -526,7 +520,6 @@ if [ "$IPV4" -eq 1 ]; then
   proto="ipv4"
   if [ "$LOGIPS" -eq 1 ] && [ "$FIREWALLD" -ne 1 ]; then
     func_vars
-    [ "$RESTORE" -eq 1 ] && func_ipt_res
     func_ipt_log
   fi
   if [ -z "$IPBLOCK_URL_V4" ]; then
@@ -540,7 +533,6 @@ if [ "$IPV6" -eq 1 ]; then
   proto="ipv6"
   if [ "$LOGIPS" -eq 1 ] && [ "$FIREWALLD" -ne 1 ]; then
     func_vars
-    [ "$RESTORE" -eq 1 ] && func_ipt_res
     func_ipt_log
   fi
   if [ -z "$IPBLOCK_URL_V6" ]; then
