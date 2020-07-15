@@ -170,7 +170,7 @@ func_vars() {
     esac
   fi
   if [ -x "/usr/sbin/${ipt}tables-legacy" ]; then
-    if [ "${DISTRO}" == "sles" ] ; then
+    if [ "${DISTRO}" = "sles" ] ; then
       iptables="/usr/sbin/${ipt}tables-legacy"
       iptrestore="/usr/sbin/${ipt}tables-legacy-restore"
       iptsave="/usr/sbin/${ipt}tables-legacy-save"
@@ -180,7 +180,7 @@ func_vars() {
       iptsave="/sbin/${ipt}tables-legacy-save"
     fi
   else
-    if [ "${DISTRO}" == "sles" ] ; then
+    if [ "${DISTRO}" = "sles" ] ; then
       iptables="/usr/sbin/${ipt}tables"
       iptrestore="/usr/sbin/${ipt}tables-restore"
       iptsave="/usr/sbin/${ipt}tables-save"
