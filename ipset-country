@@ -20,7 +20,7 @@
 # CONFIGURATION:
 # --------------
 
-# OS: "auto", "manual", "debian" or "redhat" (default is auto)
+# OS: "auto", "manual", "debian", "sles" or "redhat" (default is auto)
 # Manual example: confdir="/etc/iptables", rulesfile="${confdir}/myrules"
 
 DISTRO="auto"
@@ -144,6 +144,10 @@ func_vars() {
         confdir="/etc/sysconfig"
         rulesfile="${confdir}/ip6tables"
         ;;
+      sles)
+          confdir="/etc/sysconfig"
+          rulesfile="${confdir}/iptables"
+        ;;
     esac
   else
     ipt="ip"
@@ -159,16 +163,32 @@ func_vars() {
           confdir="/etc/sysconfig"
           rulesfile="${confdir}/iptables"
         ;;
+      sles)
+          confdir="/etc/sysconfig"
+          rulesfile="${confdir}/iptables"
+        ;;
     esac
   fi
   if [ -x "/usr/sbin/${ipt}tables-legacy" ]; then
-    iptables="/usr/sbin/${ipt}tables-legacy"
-    iptrestore="/usr/sbin/${ipt}tables-legacy-restore"
-    iptsave="/usr/sbin/${ipt}tables-legacy-save"
+    if [ "${DISTRO}" == "sles" ] ; then
+      iptables="/usr/sbin/${ipt}tables-legacy"
+      iptrestore="/usr/sbin/${ipt}tables-legacy-restore"
+      iptsave="/usr/sbin/${ipt}tables-legacy-save"
+    else
+      iptables="/sbin/${ipt}tables-legacy"
+      iptrestore="/sbin/${ipt}tables-legacy-restore"
+      iptsave="/sbin/${ipt}tables-legacy-save"
+    fi
   else
-    iptables="/sbin/${ipt}tables"
-    iptrestore="/sbin/${ipt}tables-restore"
-    iptsave="/sbin/${ipt}tables-save"
+    if [ "${DISTRO}" == "sles" ] ; then
+      iptables="/usr/sbin/${ipt}tables"
+      iptrestore="/usr/sbin/${ipt}tables-restore"
+      iptsave="/usr/sbin/${ipt}tables-save"
+    else
+      iptables="/sbin/${ipt}tables"
+      iptrestore="/sbin/${ipt}tables-restore"
+      iptsave="/sbin/${ipt}tables-save"
+    fi
   fi
   if [ "$FIREWALLD" -eq 1 ]; then
     frontend="firewalld"
