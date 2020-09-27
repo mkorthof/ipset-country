@@ -24,7 +24,7 @@ Installation
 This script will insert an iptables 'REJECT' or 'DROP' rule for ipset.  
 Make sure you do not lock yourself out in case of issues on a remote system.
 
-In case or issues check the log file (/var/log/ipset-country.log). Try setting LOGLVL to 7 ("debug").
+In case of issues check the log file (/var/log/ipset-country.log)
 
 Configuration
 -------------
