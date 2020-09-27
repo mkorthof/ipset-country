@@ -100,6 +100,7 @@ Useful ipset commands:
 Changes
 -------
 
+- [20200927] fixed restore + logips bug (pr #10 by G4bbix)
 - [20200605] added Blacklist/Whitelist mode (#3)
 - [20200129] added option to DROP instead of REJECT (#1)
 - [20191116] added ipverse support, md5check option

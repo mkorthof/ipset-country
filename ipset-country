@@ -20,7 +20,7 @@
 # CONFIGURATION:
 # --------------
 
-# OS: "auto", "manual", "debian", "sles" or "redhat" (default is auto)
+# OS: "auto", "manual", "debian", "suse" or "redhat" (default is auto)
 # Manual example: confdir="/etc/iptables", rulesfile="${confdir}/myrules"
 
 DISTRO="auto"
@@ -120,10 +120,12 @@ func_dist_auto() {
   if [ -s /etc/os-release ]; then
     if grep -iq "debian\\|ubuntu" /etc/os-release; then DISTRO="debian"
     elif grep -iq "centos\\|fedora\\|rhel" /etc/os-release; then DISTRO="redhat"
+    elif grep -iq "suse" /etc/os-release; then DISTRO="suse"
     fi
   else
     [ -s /etc/debian_version ] && DISTRO="debian"
     [ -s /etc/redhat-release ] && DISTRO="redhat"
+    [ -s /etc/SuSE-release ] && DISTRO="suse"
   fi
 }
 
@@ -140,13 +142,9 @@ func_vars() {
         [ -d "/etc/iptables" ] && confdir="/etc/iptables"
         [ -f "${confdir}/rules.v6" ] && rulesfile="${confdir}/rules.v6"
         ;;
-      redhat)
+      redhat|suse)
         confdir="/etc/sysconfig"
         rulesfile="${confdir}/ip6tables"
-        ;;
-      sles)
-          confdir="/etc/sysconfig"
-          rulesfile="${confdir}/iptables"
         ;;
     esac
   else
@@ -158,37 +156,26 @@ func_vars() {
           rulesfile="/etc/iptables.up.rules"
           [ -d "/etc/iptables" ] && confdir="/etc/iptables"
           [ -f "${confdir}/rules.v4" ] && rulesfile="${confdir}/rules.v4"
-        ;;
-      redhat)
+          ;;
+      redhat|suse)
           confdir="/etc/sysconfig"
           rulesfile="${confdir}/iptables"
-        ;;
-      sles)
-          confdir="/etc/sysconfig"
-          rulesfile="${confdir}/iptables"
-        ;;
+          ;;
     esac
   fi
   if [ -x "/usr/sbin/${ipt}tables-legacy" ]; then
-    if [ "${DISTRO}" = "sles" ] ; then
-      iptables="/usr/sbin/${ipt}tables-legacy"
-      iptrestore="/usr/sbin/${ipt}tables-legacy-restore"
-      iptsave="/usr/sbin/${ipt}tables-legacy-save"
-    else
-      iptables="/sbin/${ipt}tables-legacy"
-      iptrestore="/sbin/${ipt}tables-legacy-restore"
-      iptsave="/sbin/${ipt}tables-legacy-save"
-    fi
+    iptables="/sbin/${ipt}tables-legacy"
+    iptrestore="/sbin/${ipt}tables-legacy-restore"
+    iptsave="/sbin/${ipt}tables-legacy-save"
   else
-    if [ "${DISTRO}" = "sles" ] ; then
-      iptables="/usr/sbin/${ipt}tables"
-      iptrestore="/usr/sbin/${ipt}tables-restore"
-      iptsave="/usr/sbin/${ipt}tables-save"
-    else
-      iptables="/sbin/${ipt}tables"
-      iptrestore="/sbin/${ipt}tables-restore"
-      iptsave="/sbin/${ipt}tables-save"
-    fi
+    iptables="/sbin/${ipt}tables"
+    iptrestore="/sbin/${ipt}tables-restore"
+    iptsave="/sbin/${ipt}tables-save"
+  fi
+  if [ "$DISTRO" = "suse" ] ; then
+    iptables="/usr${iptables}"
+    iptrestore="/usr${iptrestore}"
+    iptsave="/usr${iptsave}"
   fi
   if [ "$FIREWALLD" -eq 1 ]; then
     frontend="firewalld"
@@ -513,6 +500,9 @@ func_block_ip() {
             else
               func_ips_create
               [ "$RESTORE" -eq 1 ] && func_ipt_res
+              if [ "$LOGIPS" -eq 1 ] && [ "$FIREWALLD" -ne 1 ]; then
+                func_ipt_log
+              fi
               func_ips_add
               if [ "$MODE" = "accept" ]; then
                 # whitelist
@@ -536,10 +526,6 @@ func_block_ip() {
 
 if [ "$IPV4" -eq 1 ]; then
   proto="ipv4"
-  if [ "$LOGIPS" -eq 1 ] && [ "$FIREWALLD" -ne 1 ]; then
-    func_vars
-    func_ipt_log
-  fi
   if [ -z "$IPBLOCK_URL_V4" ]; then
     IPBLOCK_URL_V4="$IPBLOCK_URL"
   fi
@@ -549,10 +535,6 @@ fi
 # ipv6 uses 'ip6tables'
 if [ "$IPV6" -eq 1 ]; then
   proto="ipv6"
-  if [ "$LOGIPS" -eq 1 ] && [ "$FIREWALLD" -ne 1 ]; then
-    func_vars
-    func_ipt_log
-  fi
   if [ -z "$IPBLOCK_URL_V6" ]; then
     IPBLOCK_URL_V6="$IPBLOCK_URL"
   fi
