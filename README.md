@@ -24,8 +24,12 @@ Installation
 This script will insert an iptables 'REJECT' or 'DROP' rule for ipset.  
 Make sure you do not lock yourself out in case of issues on a remote system.
 
+In case or issues check the log file (/var/log/ipset-country.log). Try setting LOGLVL to 7 ("debug").
+
 Configuration
 -------------
+
+***All options are set and explained in the script itself: [ipset-country](ipset-country)***
 
 **Distro:**
 
@@ -82,10 +86,6 @@ To use [ipverse.net](http://ipverse.net) instead of [ipdeny.com](https://ipdeny.
 
 **Logs:**  
 In case you want to change file location set: `LOG="/var/log/ipset-country.log"`
-
----
-
-**All options are explained in [ipset-country.sh script](ipset-country)**
 
 IPset
 ------

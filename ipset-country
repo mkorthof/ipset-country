@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# ipset-country (v20200605)
+# ipset-country (v20200927)
 # =========================
 
 # Block or allow countries using iptables, ipset and ipdeny.com
