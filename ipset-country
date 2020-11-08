@@ -71,6 +71,10 @@ IPV6=0      # For ipv6 also set IPBLOCK_URL_V6 [0/1]
 MD5CHECK=1  # Check zonefile md5sums [0/1]
 FORCE=0     # Run even if zonefile is unchanged [0/1]
             # same as running './ipset-country force'
+FLUSH=0     # On update flush ipset rule and add new rule with all IP's
+            # from file instead of comparing what's in the rule [0/1].
+            # This will make sure IP's that are no longer in teh updated
+            # files are removed from the ipset rule.
 
 # Log to file, or to disable logging use: "/dev/null 2>&1"
 LOG="/var/log/ipset-country.log"
@@ -366,6 +370,7 @@ func_ips_create() {
 
 # add blocks to ipset
 func_ips_add() {
+  [ "$FLUSH" -eq 1 ] && ipset flush "${proto}-${ctyname}"
   i=0; while read -r cidr; do
     ipset -A -exist -quiet "${proto}-${ctyname}" "$cidr" && i=$((i+1)) || echo "NOK: \"${proto}-${ctyname}\" - $i - $cidr"
   done < "${confdir}/${proto}-${zonefile}" >/dev/null 2>&1 && ips_a="OK" || ips_a="NOK"
