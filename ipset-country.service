@@ -1,0 +1,11 @@
+[Unit]
+Description=ipset-country
+
+[Service]
+Type=oneshot
+ExecStart=/my_scripts/ipset-country/ipset-country
+StandardError=file:/var/log/ipset-country.err
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
