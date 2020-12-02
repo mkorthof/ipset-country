@@ -28,8 +28,9 @@ In case of issues check the log file (/var/log/ipset-country.log)
 
 Configuration
 -------------
+***All options are set and explained in the conf file: [options.conf](options.conf)***  
+It is advisable to copy this options.conf to ".options.conf" before making any changes (to avoid custom config push to git).
 
-***All options are set and explained in the script itself: [ipset-country](ipset-country)***
 
 **Distro:**
 
@@ -52,7 +53,7 @@ Example:
 
 ---
 
-**Firewalls and options:** 
+**Firewalls and options:**
 
 Iptables and ipset are used by default to create the chains, rules and ipsets. If firewalld frontend is enabled it will be used instead.
 
@@ -99,7 +100,7 @@ Useful ipset commands:
 
 Changes
 -------
-
+- [20201202] moved the configuration to conf file (by srulikuk)
 - [20200927] fixed restore + logips bug (pr #10 by G4bbix)
 - [20200605] added Blacklist/Whitelist mode (#3)
 - [20200129] added option to DROP instead of REJECT (#1)
@@ -114,4 +115,3 @@ Other
 -----
 
 Also available: [github.com/tokiclover/dotfiles/blob/master/bin/ips.bash](https://github.com/tokiclover/dotfiles/blob/master/bin/ips.bash)
-
