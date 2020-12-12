@@ -1,5 +1,4 @@
 #!/bin/sh
-
 # ipset-country (v20200927)
 # =========================
 
@@ -91,7 +90,56 @@ LOGLVL=6
 # executables : ipt = ipt{,6}tables, iptrestore = ip{,6}tables-restore
 #               iptsave = ip{,6}tables-save
 
+scriptname="$( basename "$0" )"
+basefile="$(basename -s '.sh' "$0")"
+
+# arg '-c' config file
+SAVE_IFS="$IFS"
+IFS='|'; c=0
+for i in "$@"; do
+  if printf -- "%s" "$i" | grep -Eq -- "\-c"; then
+    c=1
+    continue
+  else
+    if [ "$c" -eq 1 ]; then
+      if printf -- "%s" "$i" | grep -Eq -- "\-"; then
+        echo "Error: config file not specfied, try \"$scriptname -h\""
+        exit 1
+      fi
+      scriptconf="$i"
+      if [ ! -s "$scriptconf" ]; then
+        echo "Error: invalid config file \"$scriptconf\" specified"
+        exit 1
+      fi
+      break
+    fi
+  fi
+done
+IFS="$SAVE_IFS"
+# if scriptconf is empty, check for {/usr/local,}/etc/ipset-country.conf and in same dir as script
+if [ -z "$scriptconf" ]; then
+  sc="$(dirname "$0")/${basefile}.conf"
+  for i in "/usr/local/etc/ipset-country.conf" "/etc/ipset-country.conf" "$sc"; do
+    if [ -e "$i" ]; then
+      scriptconf="$i"
+      break
+    fi
+  done
+fi
+unset i
+# make sure we dont source ourselves
+if [ "$scriptconf" = "$0" ]; then
+  echo "Error: invalid config file \"$scriptconf\" specified"
+  exit 1
+fi
+# source scriptconf if its non empty, else exit
+if [ -n "$scriptconf" ] && [ -s "$scriptconf" ]; then
+  # shellcheck source=/usr/local/etc/ipset-country.conf
+  . "$scriptconf" || { echo "Error: could not load $scriptconf"; exit 1; }
+fi
+
 iptr_run=0; ip6r_run=0; logips_run=0; logip6_run=0
+
 nl='
 '
 SAVE_LOG="$LOG"
@@ -402,13 +450,76 @@ func_firewalld_public() {
   fi
 }
 
+# arg "-i" install systemd service
+if printf -- "%s" "$*" | grep -Eq -- "\-i"; then
+  if [ ! -d /run/systemd/system ]; then
+    echo "ERROR: systemd not found"
+    exit 1
+  fi
+  if [ -e /lib/systemd/system/ipset-country.service ]; then
+    echo "ERROR: systemd service already exists"
+    exit 1
+  fi
+  cat <<-_EOF_ > /lib/systemd/system/ipset-country.service
+[Unit]
+Description=ipset-country
+
+[Service]
+Type=oneshot
+ExecStart=$(dirname "$(readlink -f "$0")")/$scriptname
+StandardError=file:/var/log/ipset-country.err
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+_EOF_
+  cat <<-_EOF_ > /lib/systemd/system/ipset-country.timer
+Description=ipset-country daily timer
+
+[Timer]
+OnBootSec=2min
+OnCalendar=daily
+
+[Install]
+WantedBy=timers.target
+_EOF_
+  # shellcheck disable=SC2015
+  systemctl daemon-reload && \
+  systemctl enable --now ipset-country.timer || \
+    { echo "ERROR: could not start systemd timer"; exit 1; }
+  echo "Systemd service and timer 'ipset-country' installed"
+  exit
+fi
+
+# arg "-u" uninstall systemd service
+if printf -- "%s" "$*" | grep -Eq -- "\-u"; then
+  systemctl stop ipset-country
+  systemctl stop ipset-country.timer
+  systemctl disable ipset-country
+  systemctl disable ipset-country.timer
+  rm /lib/systemd/system/ipset-country.{service,timer}
+  systemctl daemon-reload
+  systemctl reset-failed
+  exit
+fi
+
 # preflight checks
 
-if echo "$*" | grep -Eq "\-h|help"; then
-  echo "See comments in script and README.md for help"; exit
+if printf -- "%s" "$*" | grep -Eq -- "\-h|help"; then
+  echo""
+  echo "./$scriptname [-c </path/to/conf>|-i|-u|-f]"
+  echo
+  echo "  -c  specify config file"
+  echo "  -i  install systemd service and timer"
+  echo "  -u  uninstall from systemd"
+  echo "  -f  force loading unchanged zonefiles"
+  echo
+  echo "See comments in script and README.md for details"
+  echo
+  exit
 fi
 if [ "$( id -u )" -ne 0 ]; then
-  echo "Script \"$( basename "$0" )\" needs root to run"
+  echo "Script \"$scriptname\" needs root to run"
   exit 1
 fi
 if [ "$UFW" -ne 1 ]; then
@@ -420,14 +531,14 @@ if [ "$UFW" -ne 1 ]; then
     fi
   fi
 fi
-if echo "$*" | grep -iq force; then
+if printf -- "%s" "$*" | grep -Eiq -- "\-f|force"; then
   FORCE=1
 fi
 if [ ! -w "$( dirname "$LOG" )" ]; then
-  echo "Log \"$LOG\" not writable, using \"/tmp/$(basename -s '.sh' "$0").log\" instead"
-  LOG="/tmp/$(basename -s '.sh' "$0").log"
+  echo "Log \"$LOG\" not writable, using \"/tmp/${basefile}.log\" instead"
+  LOG="/tmp/${basefile}.log"
 fi
-if echo "$*" | grep -iq debug; then
+if printf -- "%s" "$*" | grep -Eiq -- "debug"; then
   LOG=/dev/stdout
 fi
 

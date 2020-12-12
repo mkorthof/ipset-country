@@ -16,12 +16,15 @@ _Please do not add Gist comments, but create an issue [here](https://github.com/
 Installation
 ------------
 
-- Setup firewall if you have not done so yet, **at least INPUT chain** is needed
-- Run this script from cron, e.g. /etc/cron.daily or a [systemd timer](https://www.freedesktop.org/software/systemd/man/systemd.timer.html)
-- To run on boot you can also add it to e.g. /etc/rc.local or systemd
-- Use argument "force" to load unchanged zonefiles instead of skipping
+1) Setup firewall if you have not done so yet, **at least INPUT chain** is needed
+2) Run this script from cron, e.g. /etc/cron.daily or a [systemd timer](https://www.freedesktop.org/software/systemd/man/systemd.timer.html) (see below)
+3) To run on boot you can also add it to e.g. /etc/rc.local or systemd
+4) Use argument "-f" to load unchanged zonefiles instead of skipping
 
-This script will insert an iptables 'REJECT' or 'DROP' rule for ipset.  
+- To automatically setup a systemd service and daily timer run: `ipset-country -i`
+- To uninstall run:`ipset-country -u`
+
+Running this script will insert an iptables 'REJECT' or 'DROP' rule for ipset.
 Make sure you do not lock yourself out in case of issues on a remote system.
 
 In case of issues check the log file (/var/log/ipset-country.log)
@@ -30,6 +33,16 @@ Configuration
 -------------
 
 ***All options are set and explained in the script itself: [ipset-country](ipset-country)***
+
+Optionally you can use a seperate config file located in the same directory as the script, "/etc" or "/usr/local/etc". Specify a custom location using `ipset-country -c /path/to/conf`
+
+The config file will overwrite any options set in script. To create a new conf file run:
+
+``` bash
+sed -n '/# CONFIGURATION:/,/# END OF CONFIG/p' ipset-country > ipset-country.conf
+```
+
+---
 
 **Distro:**
 
@@ -100,6 +113,8 @@ Useful ipset commands:
 Changes
 -------
 
+- [20201212] added config file option, systemd install (pr #14 by srulikuk)
+- [20201108] added flush option, fix restore=0 (pr #13 by srulikuk)
 - [20200927] fixed restore + logips bug (pr #10 by G4bbix)
 - [20200605] added Blacklist/Whitelist mode (#3)
 - [20200129] added option to DROP instead of REJECT (#1)
