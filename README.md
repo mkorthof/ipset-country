@@ -70,7 +70,7 @@ Example:
 Iptables and ipset are used by default to create the chains, rules and ipsets. If firewalld frontend is enabled it will be used instead.
 
 - Blacklist: block specified Countries, set `MODE` to "reject" or "drop"
-- Whitelist: allow specified Countries and block all others, set "accept"
+- Whitelist: allow specified Countries and block all others, set `MODE` to "accept"
 
 Iptables:
 
@@ -83,7 +83,7 @@ Set this option to "1" to enable firewalld: `FIREWALLD=0`
 Set `FIREWALLD_MODE=0` to use the default Blacklist mode (uses 'drop' zone). Change to "1" for Whitelist ('public' zone). _See MODE above for more information_
 
 * _NOTE:_
-There are issues with firewalld on CentOS/RHEL 8 which can cause your firewall to break resulting in being locked out. Adding large ipsets apparently can takes a VERY long time. To abort you need remote console access and run `pkill firewal-cmd; nft flush ruleset`
+There are issues with firewalld on CentOS/RHEL 8 which can cause your firewall to break resulting in being locked out. Adding large ipsets apparently can take a VERY long time. To abort you need remote console access and run `pkill firewal-cmd; nft flush ruleset`
 
 ---
 
