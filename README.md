@@ -115,6 +115,7 @@ Useful ipset commands:
 Changes
 -------
 
+- [20220227] fixed iptables-legacy paths (pr #16 by mainboarder)
 - [20201212] added config file option, systemd install (pr #14 by srulikuk)
 - [20201108] added flush option, fix restore=0 (pr #13 by srulikuk)
 - [20200927] fixed restore + logips bug (pr #10 by G4bbix)

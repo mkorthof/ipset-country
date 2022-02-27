@@ -289,9 +289,10 @@ func_zf() {
     fi
   fi
   if [ "$md5cur" != "$md5chk" ]; then
-    mv "/tmp/${proto}-${zonefile}.$$" "${confdir}/${proto}-${zonefile}" && zf="OK" || zf="NOK"
+    mv "/tmp/${proto}-${zonefile}.$$" "${confdir}/${proto}-${zonefile}" && \
+      zf="OK" || zf="NOK"
   else
-    [ "$FORCE" -ne 1 ] && zf="SKIP" || zf="FORCE"
+    if [ "$FORCE" -ne 1 ]; then zf="SKIP"; else zf="FORCE"; fi
   fi
   func_msg "zonefile: get \"${proto}-${zonefile}\" - $zf"
 }
@@ -316,11 +317,15 @@ func_ipt_log() {
   then
     if ! $iptsave | grep -q "LOGIPS"; then
       $iptables -N LOGIPS && ipt_n="OK" || ipt_n="NOK"
-    else ipt_n="already exists"; fi
+    else
+      ipt_n="already exists"
+    fi
     if ! $iptsave | grep -q "LOGIPS.*LOG"; then
       $iptables -A LOGIPS -m limit --limit 10/min -j LOG --log-prefix "IPS: " --log-level $LOGLVL && \
         ipt_l="OK" || ipt_l="NOK"
-    else ipt_l="already exists"; fi
+    else
+      ipt_l="already exists"
+    fi
     case "$MODE" in
       accept)
         if ! $iptsave | grep -q "LOGIPS.*REJECT"; then
@@ -365,7 +370,7 @@ func_ipt_deny() {
     ipt_i="already exists"
   else
     $iptables -I INPUT "$rulenum" -p tcp -m set --match-set "${proto}-${ctyname}" src -j LOGIPS && \
-    ipt_i="OK" || ipt_i="NOK"
+      ipt_i="OK" || ipt_i="NOK"
   fi
   # if logips chain does not exist - because logips=0 or previous cmds failed - insert ipset block rule
   if ! $iptsave | grep -q "\\-A LOGIPS" || test $LOGIPS -eq 0; then
@@ -396,7 +401,7 @@ func_ipt_allow() {
     ipt_i="already exists"
   else
     $iptables -I INPUT "$rulenum" -p tcp -m set --match-set "${proto}-${ctyname}" src -j LOGIPS && \
-    ipt_i="OK" || ipt_i="NOK"
+      ipt_i="OK" || ipt_i="NOK"
   fi
   # if logips chain does not exist - because logips=0 or previous cmds failed - insert ipset block rule
   if ! $iptsave | grep -q "\\-A LOGIPS" || test $LOGIPS -eq 0; then
@@ -453,7 +458,7 @@ func_firewalld_public() {
   fi
 }
 
-# arg "-i" install systemd service
+# arg "-i" installs systemd service
 if printf -- "%s" "$*" | grep -Eq -- "\-i"; then
   if [ ! -d /run/systemd/system ]; then
     echo "ERROR: systemd not found"
@@ -494,13 +499,14 @@ _EOF_
   exit
 fi
 
-# arg "-u" uninstall systemd service
+# arg "-u" uninstalls systemd service
 if printf -- "%s" "$*" | grep -Eq -- "\-u"; then
   systemctl stop ipset-country
   systemctl stop ipset-country.timer
   systemctl disable ipset-country
   systemctl disable ipset-country.timer
-  rm /lib/systemd/system/ipset-country.{service,timer}
+  rm /lib/systemd/system/ipset-country.service
+  rm /lib/systemd/system/ipset-country.timer
   systemctl daemon-reload
   systemctl reset-failed
   exit
@@ -519,7 +525,7 @@ if printf -- "%s" "$*" | grep -Eq -- "\-h|help"; then
   echo
   echo "See comments in script and README.md for details"
   echo
-  exit
+  exit 0
 fi
 if [ "$( id -u )" -ne 0 ]; then
   echo "Script \"$scriptname\" needs root to run"
@@ -527,7 +533,7 @@ if [ "$( id -u )" -ne 0 ]; then
 fi
 if [ "$UFW" -ne 1 ]; then
   # shellcheck disable=SC2230
-  if which ufw >/dev/null 2>&1;  then
+  if which ufw >/dev/null 2>&1; then
     if ufw status | grep -q "Status: active"; then
       echo "UFW is not supported, disable it first (or set UFW=1)"
       exit 1
@@ -553,7 +559,10 @@ if [ "$FIREWALLD" -eq 1 ]; then
   firewallcmd="$( which firewall-cmd 2>/dev/null )"
   test -x "$firewallcmd" && fwd_c="OK" || fwd_c="NOK - NOT FOUND"
   func_msg "$frontend: firewall-cmd - $fwd_c"
-  [ "$fwd_c" != "OK" ] && { func_msg m:stdout "try disabling option \"set FIREWALLD=0\", exiting..."; exit 1; }
+  if [ "$fwd_c" != "OK" ]; then
+    func_msg m:stdout "try disabling option \"set FIREWALLD=0\", exiting..."
+    exit 1
+  fi
 else
   if ! echo "$MODE" | grep -Eq "accept|drop|reject" ; then
     echo "invalid MODE setting"
@@ -569,7 +578,8 @@ else
     func_msg m:tee "$frontend: confdir $confdir - $ipt_d"
   fi
   if [ "$ipt_c" != "OK" ] || [ "$ipt_p" != "OK" ] || [ "$ipt_d" != "OK" ]; then
-    func_msg m:tee "exiting..."; exit 1
+    func_msg m:tee "exiting..."
+    exit 1
   fi
 fi
 
@@ -577,14 +587,19 @@ fi
 ipset="$( which ipset 2>/dev/null )"
 test -x "$ipset" && ips_e="OK" || ips_e="NOK - NOT FOUND"
 if [ "$ips_e" != "OK" ]; then
-  func_msg m:tee "ipset: $ips_e, exiting..."; exit 1
+  func_msg m:tee "ipset: $ips_e, exiting..."
+  exit 1
 fi
 
 # shellcheck disable=SC2230
 { getfile=$( which wget 2>/dev/null ) && getfile="$getfile -q -O"; }
-[ -z "$getfile" ] && { func_msg m:stdout "curl or wget not found, exiting..."; exit 1; }
+if [ -z "$getfile" ]; then
+  func_msg m:stdout "curl or wget not found, exiting..."
+  exit 1
+fi
 # shellcheck disable=SC2230
-which md5sum >/dev/null 2>&1 || { func_msg m:stdout "md5sum not found, exiting..."; exit 1; }
+which md5sum >/dev/null 2>&1 || \
+  { func_msg m:stdout "md5sum not found, exiting..."; exit 1; }
 
 # main loop: handle country here
 func_block_ip() {
@@ -616,7 +631,9 @@ func_block_ip() {
               fi
             else
               func_ips_create
-              [ "$RESTORE" -eq 1 ] && func_ipt_res
+              if [ "$RESTORE" -eq 1 ]; then
+                func_ipt_res
+              fi
               if [ "$LOGIPS" -eq 1 ] && [ "$FIREWALLD" -ne 1 ]; then
                 func_ipt_log
               fi
@@ -637,7 +654,9 @@ func_block_ip() {
     else
       func_msg m:stdout "incorrect country setting\""
     fi
-    [ -f "/tmp/${proto}-${zonefile}.$$" ] && rm "/tmp/${proto}-${zonefile}.$$"
+    if [ -f "/tmp/${proto}-${zonefile}.$$" ]; then
+      rm "/tmp/${proto}-${zonefile}.$$"
+    fi
   done
 }
 
@@ -649,13 +668,13 @@ if [ "$IPV4" -eq 1 ]; then
   func_block_ip "$IPBLOCK_URL_V4"
 fi
 
-# ipv6 uses 'ip6tables'
+# ipv6 uses '/sbin/ip6tables'
 if [ "$IPV6" -eq 1 ]; then
   proto="ipv6"
   if [ -z "$IPBLOCK_URL_V6" ]; then
     IPBLOCK_URL_V6="$IPBLOCK_URL"
   fi
-  if [ -z "$IPBLOCK_URL_V6" ] && [ -z "$IP_BLOCK_URL" ]; then
+  if [ -z "$IPBLOCK_URL_V6" ] && [ -z "$IPBLOCK_URL" ]; then
     IPBLOCK_URL_V6="$IPBLOCK_URL_V4"
   fi
   func_block_ip "$IPBLOCK_URL_V6"
