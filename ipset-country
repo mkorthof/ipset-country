@@ -214,9 +214,9 @@ func_vars() {
     esac
   fi
   if [ -x "/usr/sbin/${ipt}tables-legacy" ]; then
-    iptables="/sbin/${ipt}tables-legacy"
-    iptrestore="/sbin/${ipt}tables-legacy-restore"
-    iptsave="/sbin/${ipt}tables-legacy-save"
+    iptables="/usr/sbin/${ipt}tables-legacy"
+    iptrestore="/usr/sbin/${ipt}tables-legacy-restore"
+    iptsave="/usr/sbin/${ipt}tables-legacy-save"
   else
     iptables="/sbin/${ipt}tables"
     iptrestore="/sbin/${ipt}tables-restore"
