@@ -100,6 +100,8 @@ To use [ipverse.net](http://ipverse.net) instead of [ipdeny.com](https://ipdeny.
 **Logs:**  
 In case you want to change file location set: `LOG="/var/log/ipset-country.log"`
 
+---
+
 IPset
 ------
 
@@ -125,8 +127,8 @@ Changes
 - [20190905] cleaned it up a bit
 - [20190905] using firewalld is also supported now
 
-Other
------
+Alternatives
+------------
 
 Also available: [github.com/tokiclover/dotfiles/blob/master/bin/ips.bash](https://github.com/tokiclover/dotfiles/blob/master/bin/ips.bash)
 

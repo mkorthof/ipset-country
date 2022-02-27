@@ -60,8 +60,8 @@ UFW=0 # Set to 1 to use iptables besides ufw, at your own risk [0/1]
 # Notes: - the "aggregated" zonefiles are smaller in size
 #        - ipdeny has no md5sums for aggregated ipv6 zonefiles
 #        - ipverse does not offer md5sums at all (this autosets MD5CHECK=0)
-# Switch: comment ipdeny lines and uncomment line below to use ipverse instead
-#         IPBLOCK_URL="http://ipverse.net/ipblocks/data/countries"
+# comment ipdeny lines and uncomment line below to use ipverse instead:
+# IPBLOCK_URL="http://ipverse.net/ipblocks/data/countries"
 
 IPBLOCK_URL_V4="http://www.ipdeny.com/ipblocks/data/aggregated"
 IPBLOCK_URL_V6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"
@@ -138,7 +138,10 @@ if [ -n "$scriptconf" ] && [ -s "$scriptconf" ]; then
   . "$scriptconf" || { echo "Error: could not load $scriptconf"; exit 1; }
 fi
 
-iptr_run=0; ip6r_run=0; logips_run=0; logip6_run=0
+iptr_run=0
+ip6r_run=0
+logips_run=0
+logip6_run=0
 
 nl='
 '
