@@ -42,7 +42,7 @@ COUNTRY="CN,China; RU,Russia"
 MODE="reject"       # Set target to use when ip matches country [accept|drop|reject]
 RESTORE=0           # Run iptables-restore first, before adding rules [0/1]
 LOGIPS=1            # Create logips chain to log matches [0/1]
-INJECT_RULE="after" # Only applied to iptables in reject/drop mode, injects the rule [after|before]
+DENY_POST_AT=0 # If zero, inject rule at the end by default. If higher than zero, inject at line
 
 # FirewallD
 FIREWALLD=0       # Use firewalld instead [0/1]
@@ -363,14 +363,13 @@ func_ipt_log() {
 
 # add ipset deny rule at last line in input chain or line number 1
 func_ipt_deny() {
-  if [ "$INJECT_RULE" = "after" ]; then
+  rulenum=$DENY_POST_AT
+  #Inject rule at the end if DENY_POST == 0
+  if [ $DENY_POST_AT -eq 0 ]; then
     rulenum=$(( $(${iptables} -S INPUT 2>/dev/null|wc -l) - 1 )) || rulenum=1
-  elif [ "$INJECT_RULE" = "before" ]; then
-    rulenum=1
-  else
-    echo "Error: invalid INJECT_RULE"  
-    exit 1
   fi
+  
+
   # alternative method, slower:
   # rulenum="$(( $(${iptables} -L INPUT --line-numbers | tail -1 | awk '{print $1}') - 1 ))"
   [ "$rulenum" -eq 0 ] && rulenum=1
