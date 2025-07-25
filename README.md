@@ -1,52 +1,40 @@
 # ipset-country
 
-## Block or allow countries using iptables, ipset and ipdeny.com
+ Block or allow countries using iptables, ipset and ipdeny.com
 
----
-
-_This used to be a [Gist](https://gist.github.com/mkorthof/3033ff64c4a5b4bd31336d422104d543) but was moved here instead_  
-_Please do not add Gist comments, but create an issue [here](https://github.com/mkorthof/ipset-country/issues)_
-
----
-
-- [x] Also works with ipverse.com and other providers
-- [x] Supports RH, Debian with iptables and/or firewalld
+- [x] Supports RH and Debian with iptables, nftables and firewalld
+- [x] Also works with ipverse.com and other block list providers
 - [x] Both ipv4 and ipv6 are supported
 
-Installation
-------------
+## Installation
 
-1) Setup firewall if you have not done so yet, **at least INPUT chain** is needed
-2) Run this script from cron, e.g. /etc/cron.daily or a [systemd timer](https://www.freedesktop.org/software/systemd/man/systemd.timer.html) (see below)
-3) To run on boot you can also add it to e.g. /etc/rc.local or systemd
-4) Use argument "-f" to load unchanged zonefiles instead of skipping
+Running this script will add a 'drop' rule to your firewall. Make sure you do not lock yourself out in case of issues on a remote system.
 
-- To automatically setup a systemd service and daily timer run: `ipset-country -i`
-- To uninstall run:`ipset-country -u`
+Setup firewall if you have not done so yet, **at least an input chain** is needed.
 
-Running this script will insert an iptables 'REJECT' or 'DROP' rule for ipset.
-Make sure you do not lock yourself out in case of issues on a remote system.
+Run this script from cron, e.g. /etc/cron.daily, or as systemd service.
 
-In case of issues check the log file (/var/log/ipset-country.log)
+Or, run `ipset-country -i` to  automatically setup a systemd service and daily [timer](https://www.freedesktop.org/software/systemd/man/systemd.timer).
 
-Configuration
--------------
+To run on boot you can also add script to e.g. '/etc/rc.local'.
 
-***All options are set and explained in the script itself: [ipset-country](ipset-country)***
+To uninstall systemd timer run: `ipset-country -u`.
 
-Optionally you can use a seperate config file located in the same directory as the script, "/etc" or "/usr/local/etc". Specify a custom location using `ipset-country -c /path/to/conf`
+## Configuration
 
-The config file will overwrite any options set in script. To create a new conf file run:
+Note that **all options** and settings are explained **in the script itself**: see [ipset-country](ipset-country)
+
+Optionally. you can use a separate config file located in the same directory as the script like "/etc" or "/usr/local/etc". Specify a custom location using `ipset-country -c /path/to/conf`
+
+The config file will overwrite any options set in script. To create a new conf file, run:
 
 ``` bash
 sed -n '/# CONFIGURATION:/,/# END OF CONFIG/p' ipset-country > ipset-country.conf
 ```
 
----
+### Distro
 
-**Distro:**
-
-If needed change OS using `DISTRO` setting. Default is "auto" which should be OK.
+If needed, change OS using `DISTRO` setting. Default is "auto", which should usually work OK.
 
 Options are:
 - "auto", "debian" or "redhat"
@@ -54,68 +42,126 @@ Options are:
   - `confdir="/etc/iptables"` (example)
   - `rulesfile="${confdir}/myrules"` (example)
 
----
+### Countries
 
-**Countries:**
+Specify countries to block as `"ISOCODE,Name"` (same as ipdeny.com), multiple entries should be separated by semicolon `;`
 
-Specify countries to block as `"ISOCODE,Name"` (same as ipdeny.com), multiple entries should be seperated by semicolon `;`
-
-Example:  
+Example:
 `COUNTRY="CN,China; US,United States; RU,Russia"`
 
----
+### Logs
 
-**Firewalls and options:** 
+In case of issues check the log file '/var/log/ipset-country.log'.
 
-Iptables and ipset are used by default to create the chains, rules and ipsets. If firewalld frontend is enabled it will be used instead.
+To change log file location, set: `LOG="/path/to/log"`
 
-- Blacklist: block specified Countries, set `MODE` to "reject" or "drop"
-- Whitelist: allow specified Countries and block all others, set `MODE` to "accept"
+Or, to log to screen: `LOG="/dev/stdout"`
 
-Iptables:
+## Firewalls and options
 
-- Set target to use when ip matches country: "accept", "drop" or "reject". Default is `MODE="reject"`
-- Set `DENY_RULENUM` to "1" to insert deny rule at begining of existing rules. Or, set a specific rule number (see `iptables --numeric -L INPUT --line-numbers`). Default is 0 (at end).
+Set option `FIREWALL` to: "iptables", "ntftables" or "firewalld"
 
-FirewallD:
+Default is "iptables" (and ipset) to create the chains, rules and sets.
 
-Set this option to "1" to enable firewalld: `FIREWALLD=0`
+To block specified Countries, set `MODE` to target "reject" or "drop"  (blacklist).
+To allow specified Countries and block all others, set `MODE` to "accept" (whitelist).
+Default is "reject".
 
-Set `FIREWALLD_MODE=0` to use the default Blacklist mode (uses 'drop' zone). Change to "1" for Whitelist ('public' zone). _See MODE above for more information_
+### Iptables
 
-* _NOTE:_
-There are issues with firewalld on CentOS/RHEL 8 which can cause your firewall to break resulting in being locked out. Adding large ipsets apparently can take a VERY long time. To abort you need remote console access and run `pkill firewal-cmd; nft flush ruleset`
+Set `DENY_RULENUM` to "1" to insert deny rule at begining of existing rules.
 
----
+Or, set a specific rule number (see `iptables --numeric -L INPUT --line-numbers`)
 
-**Block list providers:**
+Default is 0 (at end).
+
+### NFTables
+
+Uses nft with native sets. Needs at least a table and "input" chain already setup.
+
+Example (ipv4):
+
+```
+nft add table ip filter
+nft add chain ip filter input \{ type filter hook input priority 0\; \}
+```
+```
+table ip filter {
+    chain input {
+      type filter hook input priority filter; policy accept;
+      # ...
+    }
+  }
+
+```
+
+To use optional location specifier of an existing rule set `NFT_RULE_LOC`. Default is empty/unset (`""`), which appends.
+
+Example: `NFT_RULE_LOC="handle 3"` or `NFT_RULE_LOC="index 5"`
+
+See `nft --handle list ruleset` or `man nft` for more details.
+
+### FirewallD:
+
+FirewallD does not support `LOGIPS=1` or `MODE='reject"`
+
+Set `MODE` to "drop" or "accept":
+
+ - if mode is "accept", ipset will be added to "drop zone" as allowed (whitelist)
+ - if mode is "drop", ipset will added to "public zone" as denied (blacklist)
+
+>  There are issues with firewalld and nft on CentOS/RHEL 8 which can cause your firewall to break resulting in being locked out. Adding large ipsets apparently can take a VERY long time.
+To abort, you need remote console access and run: `pkill firewal-cmd; nft flush ruleset`
+
+### UFW
+
+> Unsupported frontend. Apparently it is possible to run both iptables and ufw and mix rules. Enable with `UFW=1` (untested).
+
+## Block list providers
 
 Set URLs for ipv4 and/or ipv6 block files, you probably do not have to change these.  
-To use [ipverse.net](http://ipverse.net) instead of [ipdeny.com](https://ipdeny.com) and for more details see [script](ipset-country)
 
-- `IPBLOCK_URL_V4="http://www.ipdeny.com/ipblocks/data/aggregated"`
-- `IPBLOCK_URL_V6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"`
+By default [ipdeny.com](https://ipdeny.com) is used
 
----
+```
+IPBLOCK_URL_V4="http://www.ipdeny.com/ipblocks/data/aggregated"
+IPBLOCK_URL_V6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"
+```
 
-**Logs:**  
-In case you want to change file location set: `LOG="/var/log/ipset-country.log"`
+To change to [ipverse](https://github.com/ipverse/rir-ip), set:
 
----
+```
+IPBLOCK_URL="https://raw.githubusercontent.com/ipverse/rir-ip/master/country"
+```
 
-IPset
-------
+Add argument `-f` to load unchanged zonefiles instead of skipping
 
-Useful ipset commands:
+For more details see inside script.
+
+## Commands
+
+Useful commands to check and clear blocked ips
+
+### ipset
 
 - `ipset list`
 - `ipset test setname <ip>`
 - `ipset flush`
 - `ipset destroy`
 
-Changes
--------
+### nft
 
+- `nft --handle list ruleset`
+- `nft list table ip filter`
+- `nft list sets`
+- `nft list set ip filter <proto>-<country>`  (e.g. 'ipv4-china')
+- `nft list chain ip filter input`
+- `nft flush set ip filter <proto>-<country>`
+- `nft delete set ip filter <proto>-<country>`
+
+## Changes
+
+- [20250729] add suport for nftables
 - [20250721] add option to inject rejct rule on specific rulenum (pr #22 by miathedev)
 - [20220227] fixed iptables-legacy paths (pr #16 by mainboarder)
 - [20201212] added config file option, systemd install (pr #14 by srulikuk)
@@ -130,8 +176,14 @@ Changes
 - [20190905] cleaned it up a bit
 - [20190905] using firewalld is also supported now
 
-Alternatives
-------------
+## Alternatives
 
 Also available: [github.com/tokiclover/dotfiles/blob/master/bin/ips.bash](https://github.com/tokiclover/dotfiles/blob/master/bin/ips.bash)
 
+
+---
+
+_This used to be a [Gist](https://gist.github.com/mkorthof/3033ff64c4a5b4bd31336d422104d543) but was moved here instead_
+_Please do not add Gist comments, but create an issue [here](https://github.com/mkorthof/ipset-country/issues)_
+
+---
