@@ -21,8 +21,9 @@ Installation
 3) To run on boot you can also add it to e.g. /etc/rc.local or systemd
 4) Use argument "-f" to load unchanged zonefiles instead of skipping
 
-- To automatically setup a systemd service and daily timer run: `ipset-country -i`
-- To uninstall run:`ipset-country -u`
+To automatically setup a systemd service and daily timer run: `ipset-country -i`
+
+To uninstall run:`ipset-country -u`
 
 Running this script will insert an iptables 'REJECT' or 'DROP' rule for ipset.
 Make sure you do not lock yourself out in case of issues on a remote system.
@@ -79,12 +80,13 @@ Iptables:
 
 FirewallD:
 
-Set this option to "1" to enable firewalld: `FIREWALLD=0`
+- Change `FIREWALLD` from 0 to "1" to enable firewalld.
 
-Set `FIREWALLD_MODE=0` to use the default Blacklist mode (uses 'drop' zone). Change to "1" for Whitelist ('public' zone). _See MODE above for more information_
+- Set `FIREWALLD_MODE=0` to use the default Blacklist mode (uses 'drop' zone). Change to "1" for Whitelist ('public' zone). _See MODE above for more information_
 
-* _NOTE:_
-There are issues with firewalld on CentOS/RHEL 8 which can cause your firewall to break resulting in being locked out. Adding large ipsets apparently can take a VERY long time. To abort you need remote console access and run `pkill firewal-cmd; nft flush ruleset`
+> \* NOTE:
+There are issues with firewalld on CentOS/RHEL 8 which can cause your firewall to break resulting in being locked out. Adding large ipsets apparently can take a VERY long time.
+To abort, you need remote console access and run: `pkill firewal-cmd; nft flush ruleset`
 
 ---
 
