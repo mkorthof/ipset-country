@@ -74,7 +74,8 @@ Iptables and ipset are used by default to create the chains, rules and ipsets. I
 
 Iptables:
 
-Set target to use when ip matches country: "accept", "drop" or "reject". Default is `MODE="reject"`
+- Set target to use when ip matches country: "accept", "drop" or "reject". Default is `MODE="reject"`
+- Set `DENY_RULENUM` to "1" to insert deny rule at begining of existing rules. Or, set a specific rule number (see `iptables --numeric -L INPUT --line-numbers`). Default is 0 (at end).
 
 FirewallD:
 
@@ -115,6 +116,7 @@ Useful ipset commands:
 Changes
 -------
 
+- [20250721] add option to inject rejct rule on specific rulenum (pr #22 by miathedev)
 - [20220227] fixed iptables-legacy paths (pr #16 by mainboarder)
 - [20201212] added config file option, systemd install (pr #14 by srulikuk)
 - [20201108] added flush option, fix restore=0 (pr #13 by srulikuk)
