@@ -33,12 +33,20 @@ COUNTRY="CN,China; RU,Russia"
 
 # ---[ FIREWALLS AND OPTIONS  ]-------------------------------------------------
 #
-# Iptables and ipset are used by default to create the chains, rules and ipsets
-# Firewalld can be enabled to use firewalld-cmd frontend
-# UFW is an unsupported and untested frontend, but might work
-# Nftables can be used with firewalld, default is to use iptables-legacy
-# Blacklist: block specified Countries, set MODE to "reject" or "drop"
-# Whitelist: allow specified Countries and block all others, set "accept"
+# - Iptables (and ipset) is used to create the chains, rules and sets (default)
+# - NFTables uses its own native sets instead of ipset
+# - Firewalld can be set to use firewalld-cmd frontend
+#     default is to use iptables-legacy
+#     nftables as backend also works (translates '--ipset' to native nft sets)
+# - UFW is an unsupported and untested frontend, but might work
+
+FIREWALL="iptables" # Set to [iptables|ntftables|firewalld]
+
+# To block specified Countries set MODE to "drop" (blacklist)
+# To allow specified Countries and block all others, set MODE to "accept" (whitelist)
+
+MODE="reject"       # Set target to use when ip matches country [accept|drop|reject])
+LOGIPS=0            # Create logips chain to log matches [0/1]  (default=0)
 
 # Iptables
 MODE="reject"       # Set target to use when ip matches country [accept|drop|reject]
@@ -47,10 +55,9 @@ LOGIPS=1            # Create logips chain to log matches [0/1]
 DENY_RULENUM=0      # Set to 0 to inject reject rule at end of rules (default)
                     # Set to 1 for beginning, or higher for specific rule number
 
-# FirewallD
-FIREWALLD=0       # Use firewalld instead [0/1]
-FIREWALLD_MODE=0  # Set 0 for default Blacklist (drop), or 1 to Whitelist [0/1]
-FIREWALLD_RH8=0   # Enable firewalld on CentOS/RHEL 8, at your own risk [0/1]
+# NFTables
+NFT_RULE_LOC=""     # Set optional location specifier of an existing rule (default is "")
+                    # Example: NFT_RULE_LOC="handle 3" or NFT_RULE_LOC="index 5"
 
 # UFW
 UFW=0 # Set to 1 to use iptables besides ufw, at your own risk [0/1]
@@ -193,6 +200,7 @@ func_vars() {
   if [ "$proto" = "ipv6" ]; then
     ipt="ip6"
     ips_fam="inet6"
+    nft_fam="ip6"
     rj_opt="icmp6-port-unreachable"
     case $DISTRO in
       debian)
@@ -208,6 +216,7 @@ func_vars() {
   else
     ipt="ip"
     ips_fam="inet"
+    nft_fam="ip"
     rj_opt="icmp-port-unreachable"
     case $DISTRO in
       debian)
@@ -466,8 +475,59 @@ func_firewalld_drop() {
 func_firewalld_public() {
   if ! $firewallcmd --zone=public --list-sources | grep -q "${proto}-${cty_name}"; then
     func_msg m:nonl m:tee "$frontend: add source to public zone -"
-    { $firewallcmd --permanent --zone=public --add-source="ipset:${proto}-${cty_name}" && echo; } >>"$LOG" 2>&1
+    { $firewall_cmd --permanent --zone=public --add-source="ipset:${proto}-${cty_name}" && echo; } >>"$LOG" 2>&1
   fi
+}
+
+func_nft_set() {
+  if ! nft list set $nft_fam filter "${proto}-${cty_name}" >/dev/null 2>&1; then
+    if ! nft add set $nft_fam filter "${proto}-${cty_name}" \{ type "${proto}_addr"\; size 65536\; flags interval\; \} >>"$LOG" 2>&1; then
+      func_msg "nft: add set \"${proto}-$cty_name\" - NOK. Exiting ..."
+      exit 1
+    fi
+  fi
+  func_msg "nft: add set \"${proto}-$cty_name\" - OK"
+}
+
+func_nft_add() {
+  if [ "${FLUSH:-0}" -eq 1 ]; then
+    nft flush set $nft_fam filter "${proto}-${cty_name}"
+  fi
+  i=0; while read -r cidr; do
+    if nft add element $nft_fam filter "${proto}-${cty_name}" \{ "$cidr" \} >>"$LOG" 2>&1; then
+      i=$((i+1))
+    else
+      echo "NOK: \"${proto}-${cty_name}\" - $i - $cidr"
+    fi
+  done < "${confdir}/${proto}-${zonefile}" >/dev/null 2>&1 && nft_add="OK" || nft_add="NOK"
+  [ "$i" -eq 0 ] && nft_add="NOK"
+  func_msg "nft: add \"${proto}-${zonefile}\" to set \"${proto}-${cty_name}\" - $nft_add - $i elements"
+}
+
+func_nft_rule() {
+  nft_rule="NOK"
+  if ! nft list chain $nft_fam filter input | grep -Eq "@${proto}-${cty_name}.*$MODE"; then
+    # shellcheck disable=SC2086
+    if nft add rule $nft_fam filter input ${NFT_RULE_LOC} $nft_fam saddr "@${proto}-${cty_name}" $MODE >>"$LOG"; then
+      nft_rule="OK"
+    fi
+  else
+    nft_rule="OK"
+  fi  
+  func_msg "nft: add rule \"${proto}-$cty_name\" $MODE - $nft_rule"
+}
+
+func_nft_log() {
+  nft_log="NOK"
+  mode_uc="$(echo $MODE | tr '[:lower:]' '[:upper:]')"
+  if ! nft list chain $nft_fam filter input | grep -Eq "log prefix \"NFT: $mode_uc"; then
+    if nft add rule $nft_fam filter input limit rate 10/minute burst 5 packets counter log prefix \"NFT: "$mode_uc" \" >>"$LOG"; then
+      nft_log="OK"
+    fi
+  else
+    nft_log="OK"
+  fi
+  func_msg "nft: add log $MODE - $nft_log"
 }
 
 # arg "-i" installs systemd service
@@ -657,8 +717,24 @@ func_block_ip() {
                 # blacklist
                 func_ipt_deny
               fi
-            fi
-          fi
+            ;;
+            nftables)
+              func_nft_set
+              func_nft_add
+              func_nft_rule
+              if [ "${LOGIPS:-0}" -eq 1 ]; then
+                func_nft_log
+              fi
+            ;;
+            firewalld)
+              func_firewalld_ips
+              if [ "${MODE:-drop}" = "accept" ]; then
+                func_firewalld_drop  # whitelist
+              else
+                func_firewalld_public  # blacklist
+              fi
+            ;;
+          esac
         else
           func_msg "zonefile: md5 \"${proto}-${zonefile}\" mismatch\""
         fi
@@ -696,5 +772,6 @@ if [ "$FIREWALLD" -eq 1 ]; then
   func_msg m:nonl m:stdout "firewalld: reload -"
   $firewallcmd --reload >>"$LOG" 2>&1
 fi
+
 func_msg m:stdout "ipset-country: done"
 IFS="$SAVE_IFS"
