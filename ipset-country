@@ -8,18 +8,16 @@
 
 # INSTALLATION:
 # -------------
-#
-# - Setup firewall if you have not done so yet, at least INPUT chain is needed
-# - Run this script from cron, e.g. /etc/cron.daily
-# - To run on boot you can also add it to e.g. /etc/rc.local or systemd
+# - Setup firewall if you have not done so yet, at least input chain is needed
+# - Run this script from cron, e.g. /etc/cron.daily or systemd timer ('run pset-country -i')
+# - To run on boot you can also add it to e.g. /etc/rc.local (or systemd)
 # - Use argument "force" to load unchanged zonefiles instead of skipping
 
-# NOTE: This script will insert an iptables REJECT or DROP rule for ipset,
+# NOTE: This script will add a adrop rule to your firewall
 # make sure you do not lock yourself out in case of issues on a remote system
 
 # CONFIGURATION:
 # --------------
-#
 # OS: "auto", "manual", "debian", "suse" or "redhat" (default is auto)
 # Example for OS="manual":  confdir="/etc/iptables"; rulesfile="${confdir}/myrules"
 
@@ -49,9 +47,7 @@ MODE="reject"       # Set target to use when ip matches country [accept|drop|rej
 LOGIPS=0            # Create logips chain to log matches [0/1]  (default=0)
 
 # Iptables
-MODE="reject"       # Set target to use when ip matches country [accept|drop|reject]
-RESTORE=0           # Run iptables-restore first, before adding rules [0/1]
-LOGIPS=1            # Create logips chain to log matches [0/1]
+RESTORE=0           # Run iptables-restore first, before adding rules [0/1] (default=0)
 DENY_RULENUM=0      # Set to 0 to inject reject rule at end of rules (default)
                     # Set to 1 for beginning, or higher for specific rule number
 
@@ -59,38 +55,43 @@ DENY_RULENUM=0      # Set to 0 to inject reject rule at end of rules (default)
 NFT_RULE_LOC=""     # Set optional location specifier of an existing rule (default is "")
                     # Example: NFT_RULE_LOC="handle 3" or NFT_RULE_LOC="index 5"
 
-# UFW
-UFW=0 # Set to 1 to use iptables besides ufw, at your own risk [0/1]
+# FirewallD
+FIREWALLD_RH8=0     # Enable firewalld on CentOS/RHEL 8, at your own risk [0/1]
 
 # ---[ BLOCK LIST PROVIDERS ]---------------------------------------------------
 #
 # IPdeny: "http://www.ipdeny.com/ipblocks/data/aggregated" (aggregated ipv4)
 #         "http://www.ipdeny.com/ipv6/ipaddresses/blocks" (ipv6)
 #         "http://www.ipdeny.com/ipblocks/data/countries" (full ipv4)
-# IPverse: "http://ipverse.net/ipblocks/data/countries"
+# IPverse: "https://github.com/ipverse/rir-ip"
 # Others: should work if they offer (iso) country zonefiles with CIDR's
 # Notes: - the "aggregated" zonefiles are smaller in size
 #        - ipdeny has no md5sums for aggregated ipv6 zonefiles
 #        - ipverse does not offer md5sums at all (this autosets MD5CHECK=0)
 
 # Comment ipdeny lines and uncomment line below to use ipverse instead:
-# IPBLOCK_URL="http://ipverse.net/ipblocks/data/countries"
+# IPBLOCK_URL="https://github.com/ipverse/rir-ip/tree/master/country"
 
 IPBLOCK_URL_V4="http://www.ipdeny.com/ipblocks/data/aggregated"
 IPBLOCK_URL_V6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"
 
-IPV4=1      # Use ipv4, ipv6 or both
-IPV6=0      # For ipv6 also set IPBLOCK_URL_V6 [0/1]
-MD5CHECK=1  # Check zonefile md5sums [0/1]
-FORCE=0     # Run even if zonefile is unchanged [0/1]
+# Use ipv4, ipv6 or both. (default: IPV4=1)
+# For ipv6, set IPBLOCK_URL_V6 or the same url as ipv4 is used
+IPV4=1
+IPV6=0
+
+MD5CHECK=1  # Check zonefile md5sums [0/1]  (default=1)
+FORCE=0     # Run even if zonefile is unchanged [0/1]  (default=0)
             # same as running './ipset-country force'
-FLUSH=0     # Flush ipset before adding zonefile [0/1]
+FLUSH=0     # Flush set before adding zonefile [0/1]  (default=0)
             # this will take care of removed ranges
 
 # Log to file, or to disable logging use: "/dev/null 2>&1"
-LOG="/var/log/ipset-country.log"
+# Default is "/var/log/ipset-country.log"
+#LOG="/var/log/ipset-country.log"
+LOG="/dev/stdout"
 
-# Level, see below and man syslog [0-7]
+# Level, see below and man syslog [0-7]  (default is 6=info)
 # 0=emerg 1=alert crit=2 3=err 4=warning 5=notice 6=info 7=debug
 
 LOGLVL=6
