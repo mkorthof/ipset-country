@@ -70,7 +70,7 @@ FIREWALLD_RH8=0     # Enable firewalld on CentOS/RHEL 8, at your own risk [0/1]
 #        - ipverse does not offer md5sums at all (this autosets MD5CHECK=0)
 
 # Comment ipdeny lines and uncomment line below to use ipverse instead:
-# IPBLOCK_URL="https://github.com/ipverse/rir-ip/tree/master/country"
+# IPBLOCK_URL="https://raw.githubusercontent.com/ipverse/rir-ip/refs/heads/master/country"
 
 IPBLOCK_URL_V4="http://www.ipdeny.com/ipblocks/data/aggregated"
 IPBLOCK_URL_V6="http://www.ipdeny.com/ipv6/ipaddresses/blocks"
@@ -86,10 +86,9 @@ FORCE=0     # Run even if zonefile is unchanged [0/1]  (default=0)
 FLUSH=0     # Flush set before adding zonefile [0/1]  (default=0)
             # this will take care of removed ranges
 
-# Log to file, or to disable logging use: "/dev/null 2>&1"
+# Log to file e.g. "/path/to/my.log", screen "dev/stdout" or disable: "/dev/null 2>&1"
 # Default is "/var/log/ipset-country.log"
-#LOG="/var/log/ipset-country.log"
-LOG="/dev/stdout"
+LOG="/var/log/ipset-country.log"
 
 # Level, see below and man syslog [0-7]  (default is 6=info)
 # 0=emerg 1=alert crit=2 3=err 4=warning 5=notice 6=info 7=debug
@@ -144,7 +143,7 @@ if [ "$scriptconf" = "$0" ]; then
 fi
 # source scriptconf if its non empty, else exit
 if [ -n "$scriptconf" ] && [ -s "$scriptconf" ]; then
-  # shellcheck source=/usr/local/etc/ipset-country.conf
+  # shellcheck source=/usr/local/etc/ipset-country.conf disable=SC1091
   . "$scriptconf" || { echo "Error: could not load $scriptconf"; exit 1; }
 fi
 
@@ -160,8 +159,7 @@ SAVE_LOG="$LOG"
 func_msg() {
   msg="$*"; eol="$nl"; tee=0
   if echo "$msg" | grep -q '^m:'; then
-    # shellcheck disable=SC2048
-    for i in $*; do
+    for i in "$@"; do
       # set output "mode"
       case $i in
         m:logfile) LOG="$SAVE_LOG" ;;
@@ -175,7 +173,7 @@ func_msg() {
   if [ "$tee" -eq 1 ]; then
     printf "%s %s%s" "$( date +%F\ %T )" "$msg" "$eol" | tee -a "$LOG"
   else
-    printf "%s %s%s" "$( date +%F\ %T )" "$msg" "$eol" >> $LOG
+    printf "%s %s%s" "$( date +%F\ %T )" "$msg" "$eol" >> "$LOG"
   fi
 }
 
@@ -231,47 +229,31 @@ func_vars() {
       ;;
     esac
   fi
-  if [ -x "/usr/sbin/${ipt}tables-legacy" ]; then
-    iptables="/usr/sbin/${ipt}tables-legacy"
-    iptrestore="/usr/sbin/${ipt}tables-legacy-restore"
-    iptsave="/usr/sbin/${ipt}tables-legacy-save"
-  else
-    iptables="/sbin/${ipt}tables"
-    iptrestore="/sbin/${ipt}tables-restore"
-    iptsave="/sbin/${ipt}tables-save"
-  fi
-  if [ "$DISTRO" = "suse" ] ; then
-    iptables="/usr${iptables}"
-    iptrestore="/usr${iptrestore}"
-    iptsave="/usr${iptsave}"
-  fi
-  if [ "$FIREWALLD" -eq 1 ]; then
-    frontend="firewalld"
-    if [ "$DISTRO" = "redhat" ] && [ "$FIREWALLD_RH8" -ne 1 ]; then
-      if grep -Eiq "red hat enterprise linux 8.0|centos linux 8" /etc/os-release; then
-        echo
-        echo "WARNING: There are issues with firewalld on CentOS/RHEL 8 which can cause"
-        echo "         your firewall to break resulting in being locked out."
-        echo "         Adding large ipsets apparently can takes a VERY long time. To abort you need"
-        echo "         remote console access and run 'pkill firewal-cmd; nft flush ruleset'"
-        echo "         Set FIREWALLD_RH8=1 to disable this message"
-        echo
-        printf "Press any key to quit or 'Y' then [ENTER] to continue "
-        read -r a
-        if ! echo "$a" | grep -iq y;
-          then exit 1
-        fi
-        FIREWALLD_RH8=1
-        func_msg m:stdout "continuing..."
+  case $FIREWALL in
+    iptables)
+      frontend="${ipt}tables"
+      if [ -x "/usr/sbin/${ipt}tables-legacy" ]; then
+        iptables="/usr/sbin/${ipt}tables-legacy"
+        iptrestore="/usr/sbin/${ipt}tables-legacy-restore"
+        iptsave="/usr/sbin/${ipt}tables-legacy-save"
+      else
+        iptables="/sbin/${ipt}tables"
+        iptrestore="/sbin/${ipt}tables-restore"
+        iptsave="/sbin/${ipt}tables-save"
       fi
-    fi
-  else
-    frontend="${ipt}tables"
-    if [ "$RESTORE" -eq 1 ] && [ ! -f "$rulesfile" ]; then
-      func_msg m:stdout "could not find iptables rules file \"${rulesfile}\""
-      exit 1
-    fi
-  fi
+      if [ "$DISTRO" = "suse" ] ; then
+        iptables="/usr${iptables}"
+        iptrestore="/usr${iptrestore}"
+        iptsave="/usr${iptsave}"
+      fi
+    ;;
+    nftables)
+      frontend="nft"
+    ;;
+    firewalld)
+      frontend="firewalld-cmd"
+    ;;
+  esac
 }
 
 # download zonefile and get md5sum if enabled
@@ -286,11 +268,9 @@ func_zonefile() {
     fi
   fi
   zoneurl="$zonefile"
-  if echo "$url" | grep -iq "ipverse.net"; then
+  if echo "$url" | grep -iq "/ipverse"; then
     MD5CHECK=0
-    if [ "$proto" = "ipv6" ]; then
-      zoneurl="${cty_iso}-ipv6.zone"
-    fi
+    zoneurl="${cty_iso}/${proto}-aggregated.txt"
   fi
   $getfile "/tmp/${proto}-${zonefile}.$$" "${url}/${zoneurl}"
   # check downloaded zonefile against MD5SUM
@@ -378,7 +358,10 @@ func_ipt_log() {
 }
 
 func_ipt_deny() {
-  # if DENY_RULENUM=0 inject deny rule at end, or specific rule number 1 or higher
+  # if DENY_RULENUM is:
+  #   0:  inject rule at end
+  #   1:  inject rule at start
+  #   >1: add rule at specified <rulenum>
   rulenum=0
   if [ "${DENY_RULENUM:-0}" -eq 0 ]; then
     rulenum=$(( $(${iptables} -S INPUT 2>/dev/null|wc -l) - 1 )) || rulenum=1
@@ -391,7 +374,7 @@ func_ipt_deny() {
   if $iptsave | grep -q "match-set.*${proto}-${cty_name}.*LOGIPS"; then
     ipt_set="already exists"
   else
-    $iptables -I INPUT "$rulenum" -p tcp -m set --match-set "${proto}-${cty_name}" src -j LOGIPS && \
+    $iptables -I INPUT "$rulenum" -p tcp -m set --match-set "${proto}-${cty_name}" src -j LOGIPS >/dev/null 2>&1 && \
       ipt_set="OK" || ipt_set="NOK"
   fi
   # if logips chain does not exist - because logips=0 or previous cmds failed - insert ipset block rule
@@ -419,11 +402,11 @@ func_ipt_deny() {
 # add ipset allow rule
 func_ipt_allow() {
   rulenum=1
-  if $iptsave | grep -q "match-set.*${proto}-${cty_name}.*LOGIPS"; then
-    ipt_set="already exists"
-  else
-    $iptables -I INPUT "$rulenum" -p tcp -m set --match-set "${proto}-${cty_name}" src -j LOGIPS && \
+  if ! $iptsave | grep -q "match-set.*${proto}-${cty_name}.*LOGIPS"; then
+    $iptables -I INPUT "$rulenum" -p tcp -m set --match-set "${proto}-${cty_name}" src -j LOGIPS >/dev/null 2>&1 && \
       ipt_set="OK" || ipt_set="NOK"
+  else
+    ipt_set="already exists"
   fi
   # if logips chain does not exist - because logips=0 or previous cmds failed - insert ipset block rule
   if ! $iptsave | grep -q "\\-A LOGIPS" || test $LOGIPS -eq 0; then
@@ -439,42 +422,56 @@ func_ipt_allow() {
 
 # create ipset using type hash
 func_ips_create() {
-  { ipset list -terse "${proto}-${cty_name}" >/dev/null 2>&1 || ipset create "${proto}-${cty_name}" hash:net family ${ips_fam}; } && \
-    ips_create="OK" || ips_create="NOK"
+  ips_create="NOK"
+  if ! ipset list -terse "${proto}-${cty_name}" >/dev/null 2>&1; then
+    if ipset create "${proto}-${cty_name}" hash:net family ${ips_fam}; then
+      ips_create="OK"
+    fi
+  else
+    ips_create="OK"
+  fi
   func_msg "ipset: create set \"${proto}-$cty_name\" - $ips_create"
 }
 
 # add blocks to ipset
 func_ips_add() {
-  [ "$FLUSH" -eq 1 ] && ipset flush "${proto}-${cty_name}"
+  if [ "${FLUSH:-0}" -eq 1 ]; then
+    ipset flush "${proto}-${cty_name}"
+  fi
   i=0; while read -r cidr; do
-    ipset add -exist -quiet "${proto}-${cty_name}" "$cidr" && i=$((i+1)) || echo "NOK: \"${proto}-${cty_name}\" - $i - $cidr"
+    if ipset add -exist -quiet "${proto}-${cty_name}" "$cidr"; then
+      i=$((i+1))
+    else
+      echo "NOK: \"${proto}-${cty_name}\" - $i - $cidr"
+    fi
   done < "${confdir}/${proto}-${zonefile}" >/dev/null 2>&1 && ips_add="OK" || ips_add="NOK"
   [ "$i" -eq 0 ] && ips_add="NOK"
-  func_msg "ipset: add \"${proto}-${zonefile}\" to \"${proto}-${cty_name}\" - $ips_add - $i entries"
+  func_msg "ipset: add \"${proto}-${zonefile}\" to set \"${proto}-${cty_name}\" - $ips_add - $i entries"
 }
 
 func_firewalld_ips() {
-  if ! $firewallcmd --get-ipsets | grep -q "${proto}-${cty_name}"; then
+  if ! $firewall_cmd --get-ipsets | grep -q "${proto}-${cty_name}"; then
     func_msg m:nonl "$frontend: new ipset \"${proto}-${cty_name}\" -"
-    $firewallcmd --permanent --new-ipset="${proto}-${cty_name}" --type=hash:net --option=family="${ips_fam}" >>"$LOG" 2>&1
+    $firewall_cmd --permanent --new-ipset="${proto}-${cty_name}" --type=hash:net --option=family="${ips_fam}" >>"$LOG" 2>&1
   fi
   func_msg m:nonl "$frontend: add to ipset -"
-  $firewallcmd --permanent --ipset="${proto}-${cty_name}" --add-entries-from-file="${confdir}/${proto}-${zonefile}" >>"$LOG" 2>&1 && { \
+  $firewall_cmd --permanent --ipset="${proto}-${cty_name}" --add-entries-from-file="${confdir}/${proto}-${zonefile}" >>"$LOG" 2>&1 && { \
     i="$( ipset -terse list "${proto}-${cty_name}" | awk 'END { print $NF }' )"
     func_msg "ipset: add \"${proto}-${zonefile}\" to \"${proto}-${cty_name}\" - $i entries"
   }
 }
 
+# drop: All incoming connections are rejected. Outbound connections are possible.
 func_firewalld_drop() {
-  if ! $firewallcmd --zone=drop --list-sources | grep -q "${proto}-${cty_name}"; then
+  if ! $firewall_cmd --zone=drop --list-sources | grep -q "${proto}-${cty_name}"; then
     func_msg m:nonl m:tee "$frontend: add source to drop zone -"
-    { $firewallcmd --permanent --zone=drop --add-source="ipset:${proto}-${cty_name}" && echo; } >>"$LOG" 2>&1
+    { $firewall_cmd --permanent --zone=drop --add-source="ipset:${proto}-${cty_name}" && echo; } >>"$LOG" 2>&1
   fi
 }
 
-func_firewalld_public() {
-  if ! $firewallcmd --zone=public --list-sources | grep -q "${proto}-${cty_name}"; then
+# public: Use this zone for public environments in which you do not trust other computers on the network. Only predefined connections (i.e. ports / services) are accepted.f
+unc_firewalld_public() {
+  if ! $firewall_cmd --zone=public --list-sources | grep -q "${proto}-${cty_name}"; then
     func_msg m:nonl m:tee "$frontend: add source to public zone -"
     { $firewall_cmd --permanent --zone=public --add-source="ipset:${proto}-${cty_name}" && echo; } >>"$LOG" 2>&1
   fi
@@ -564,11 +561,14 @@ OnCalendar=daily
 [Install]
 WantedBy=timers.target
 _EOF_
-  # shellcheck disable=SC2015
-  systemctl daemon-reload && \
-  systemctl enable --now ipset-country.timer || \
-    { echo "ERROR: could not start systemd timer"; exit 1; }
-  echo "Systemd service and timer 'ipset-country' installed"
+  if systemctl daemon-reload; then
+    if systemctl enable --now ipset-country.timer; then
+      echo "Systemd service and timer 'ipset-country' installed"
+    else
+      echo "ERROR: could not start systemd timer"
+      exit 1
+    fi
+  fi
   exit
 fi
 
@@ -604,11 +604,10 @@ if [ "$( id -u )" -ne 0 ]; then
   echo "Script \"$scriptname\" needs root to run"
   exit 1
 fi
-if [ "$UFW" -ne 1 ]; then
-  # shellcheck disable=SC2230
+if [ "${UFW:-0}" -ne 1 ]; then
   if which ufw >/dev/null 2>&1; then
     if ufw status | grep -q "Status: active"; then
-      echo "UFW is not supported, disable it first (or set UFW=1)"
+      echo "UFW is not supported, disable it first (or set UFW=\"1\")"
       exit 1
     fi
   fi
@@ -627,52 +626,115 @@ fi
 [ "$DISTRO" = "auto" ] && func_dist_auto
 func_vars
 
-if [ "$FIREWALLD" -eq 1 ]; then
-  # shellcheck disable=SC2230
-  firewallcmd="$( which firewall-cmd 2>/dev/null )"
-  test -x "$firewallcmd" && fwd_cmd="OK" || fwd_cmd="NOK - NOT FOUND"
-  func_msg "$frontend: firewall-cmd - $fwd_cmd"
-  if [ "$fwd_cmd" != "OK" ]; then
-    func_msg m:stdout "try disabling option \"set FIREWALLD=0\", exiting..."
-    exit 1
-  fi
-else
-  if ! echo "$MODE" | grep -Eq "accept|drop|reject" ; then
-    echo "invalid MODE setting"
-    exit 1
-  fi
-  test -x "$iptables" && ipt_cmd="OK" || ipt_cmd="NOK - NOT FOUND"
-  $iptables -n -L INPUT >/dev/null 2>&1 && ipt_p="OK" || ipt_p="OK"
-  test -d "$confdir" && ipt_dir="OK" || ipt_dir="NOK - NOT FOUND"
-  if [ "$ipt_cmd" != "OK" ] || [ "$ipt_p" != "OK" ];then
-    func_msg m:tee "$frontend: $iptables ${ipt_cmd}, input chain: $ipt_p"
-  fi
-  if [ "$ipt_dir" != "OK" ];then
-    func_msg m:tee "$frontend: confdir $confdir - $ipt_dir"
-  fi
-  if [ "$ipt_cmd" != "OK" ] || [ "$ipt_p" != "OK" ] || [ "$ipt_dir" != "OK" ]; then
-    func_msg m:tee "exiting..."
-    exit 1
-  fi
-fi
-
-# shellcheck disable=SC2230
-ipset="$( which ipset 2>/dev/null )"
-test -x "$ipset" && ips_cmd="OK" || ips_cmd="NOK - NOT FOUND"
-if [ "$ips_cmd" != "OK" ]; then
-  func_msg m:tee "ipset: $ips_cmd, exiting..."
+if ! echo "$FIREWALL" | grep -Eq "iptables|nftables|firewalld|ufw" ; then
+  echo "invalid FIREWALL setting"
   exit 1
 fi
 
-# shellcheck disable=SC2230
+if ! echo "$MODE" | grep -Eq "accept|drop|reject" ; then
+  echo "invalid MODE setting"
+  exit 1
+fi
+
+case $FIREWALL in
+  iptables)
+    if [ -x "$iptables" ]; then
+      ipt_cmd="OK"
+    else
+      ipt_cmd="NOK. iptables not found."
+    fi
+    if $iptables -n -L INPUT >/dev/null 2>&1; then
+      ipt_chain="OK"
+    else
+      ipt_chain="NOK. INPUT chain not found."
+    fi
+    if [ -d "$confdir" ];  then
+      ipt_dir="OK"
+    else
+      ipt_dir="NOK. Config dir not found."
+    fi
+    if [ "$ipt_cmd" != "OK" ] || [ "$ipt_chain" != "OK" ];then
+      func_msg m:tee "$frontend: $iptables ${ipt_cmd}, input chain: $ipt_chain"
+    fi
+    if [ "$ipt_dir" != "OK" ];then
+      func_msg m:tee "$frontend: confdir $confdir - $ipt_dir"
+    fi
+    if [ "$ipt_cmd" != "OK" ] || [ "$ipt_chain" != "OK" ] || [ "$ipt_dir" != "OK" ]; then
+      func_msg m:tee "exiting..."
+      exit 1
+    fi
+    ipset="$( which ipset 2>/dev/null )"
+    if [ -x  "$ipset" ]; then
+      ips_cmd="OK"
+    else
+      ips_cmd="NOK. ipset not found."
+    fi
+    if [ "$ips_cmd" != "OK" ]; then
+      func_msg m:tee "ipset: $ips_cmd, exiting..."
+      exit 1
+    fi
+    if [ "$RESTORE" -eq 1 ] && [ ! -f "$rulesfile" ]; then
+      func_msg m:stdout "could not find iptables rules file \"${rulesfile}\""
+      exit 1
+    fi
+  ;;
+  nftables)
+    nft_cmd="$( which nft 2>/dev/null )"
+    if [ -x "$nft_cmd" ]; then
+        func_msg "nftables: $frontend - OK"
+    else
+        func_msg "nftables: $frontend - NOK. nft not found, exiting..."
+        exit 1
+    fi
+    if ! nft list chain $nft_fam filter input >/dev/null 2>&1; then
+        func_msg "nftables: $frontend - NOK. input chain not found, exiting..."
+        exit 1
+    fi
+  ;;
+  firewalld)
+    if [ "$DISTRO" = "redhat" ] && [ "$FIREWALLD_RH8" -ne 1 ]; then
+      if grep -Eiq "red hat enterprise linux 8.0|centos linux 8" /etc/os-release; then
+        echo
+        echo "WARNING: There are issues with firewalld and nftables on CentOS/RHEL 8 which"
+        echo "         can cause your firewall to break resulting in being locked out."
+        echo "         Adding large ipsets apparently can takes a VERY long time. To abort, you"
+        echo "         need remote console access and run 'pkill firewal-cmd; nft flush ruleset'"
+        echo "         Set FIREWALLD_RH8=1 to disable this message"
+        echo
+        printf "Press any key to quit or 'Y' then [ENTER] to continue "
+        read -r a
+        if ! echo "$a" | grep -iq y;
+          then exit 1
+        fi
+        FIREWALLD_RH8=1
+        func_msg m:stdout "continuing..."
+      fi
+    fi
+    firewall_cmd="$( which firewall-cmd 2>/dev/null )"
+    if [ -x "$firewall_cmd" ]; then
+      func_msg "firewalld: $frontend - OK"
+    else
+      func_msg "firewalld: $frontend - NOK. Command not found, exiting..."
+      exit 1
+    fi
+    if [ "$MODE" = "reject" ]; then
+      func_msg "firewalld: MODE=\"reject\" not suppported, using 'drop' instead"
+    fi
+    if [ "${LOGIPS:-0}" = 1 ]; then
+      func_msg "firewalld: LOGIPS=1 not suppported, igored"
+    fi
+  ;;
+esac
+
 { getfile=$( which wget 2>/dev/null ) && getfile="$getfile -q -O"; }
 if [ -z "$getfile" ]; then
   func_msg m:stdout "curl or wget not found, exiting..."
   exit 1
 fi
-# shellcheck disable=SC2230
-which md5sum >/dev/null 2>&1 || \
-  { func_msg m:stdout "md5sum not found, exiting..."; exit 1; }
+if ! which md5sum >/dev/null 2>&1; then
+  func_msg m:stdout "md5sum not found, exiting..."
+  exit 1
+fi
 
 # main loop: handle country here
 func_block_ip() {
@@ -685,38 +747,30 @@ func_block_ip() {
     if [ "$cty_name" != "" ]; then
       IFS="$SAVE_IFS"
       for url in $1; do
-        # if its an ipv6 zonefile url: change protocol
+        # change protocol if its an ipv6 zonefile url
         if echo "$url" | grep -q "ipv6"; then
           proto="ipv6"
         fi
         func_vars
         func_zonefile
         if [ "$MD5CHECK" -eq 0 ] || [ "$md5src" = "$md5chk" ]; then
-          if [ "$zf_res" != "SKIP" ]; then
-            if [ "$FIREWALLD" -eq 1 ]; then
-              func_firewalld_ips
-              if [ "$FIREWALLD_MODE" -eq 1 ]; then
-                # blacklist
-                func_firewalld_public
-              else
-                # whitelist
-                func_firewalld_drop
-              fi
-            else
+          if [ "$zf_res" = "SKIP" ]; then
+            continue
+          fi
+          case $FIREWALL in
+            iptables)
               func_ips_create
-              if [ "$RESTORE" -eq 1 ]; then
+              if [ "${RESTORE:-0}" -eq 1 ]; then
                 func_ipt_restore
               fi
-              if [ "$LOGIPS" -eq 1 ] && [ "$FIREWALLD" -ne 1 ]; then
+              if [ "${LOGIPS:-0}" -eq 1 ]; then
                 func_ipt_log
               fi
               func_ips_add
-              if [ "$MODE" = "accept" ]; then
-                # whitelist
-                func_ipt_allow
+              if [ "${MODE:-drop}" = "accept" ]; then
+                func_ipt_allow  # whitelist
               else
-                # blacklist
-                func_ipt_deny
+                func_ipt_deny  # blacklist
               fi
             ;;
             nftables)
@@ -757,7 +811,7 @@ if [ "$IPV4" -eq 1 ]; then
   func_block_ip "$IPBLOCK_URL_V4"
 fi
 
-# ipv6 uses '/sbin/ip6tables'
+# ipv6 uses /sbin/ip6tables
 if [ "$IPV6" -eq 1 ]; then
   proto="ipv6"
   if [ -z "$IPBLOCK_URL_V6" ]; then
@@ -769,10 +823,24 @@ if [ "$IPV6" -eq 1 ]; then
   func_block_ip "$IPBLOCK_URL_V6"
 fi
 
-if [ "$FIREWALLD" -eq 1 ]; then
-  func_msg m:nonl m:stdout "firewalld: reload -"
-  $firewallcmd --reload >>"$LOG" 2>&1
-fi
+case $FIREWALL in
+  iptables)
+    if ${iptsave} | ${iptrestore} --test; then
+      func_msg m:tee "iptables: test ruleset - OK"
+    else
+      func_msg m:tee "iptables: test ruleset - FAILED. Exiting..."
+      exit 1
+    fi
+  ;;
+  nftables)
+    #nft -c list ruleset
+    true
+  ;;
+  firewalld)
+    func_msg m:nonl m:stdout "firewalld: reload -"
+    $firewall_cmd --reload >>"$LOG" 2>&1
+  ;;
+esac
 
 func_msg m:stdout "ipset-country: done"
 IFS="$SAVE_IFS"
