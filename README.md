@@ -8,23 +8,23 @@
 
 ## Installation
 
-Running this script will add a 'drop' rule to your firewall. Make sure you do not lock yourself out in case of issues on a remote system.
+Setup firewall first if you have not done so yet, **at least an input chain** is needed.
 
-Setup firewall firrst if you have not done so yet, **at least an input chain** is needed.
+Then run this script manually and if all is well, add to cron (e.g. /etc/cron.daily) or systemd service.
 
-Then run this script manually and if all is well, add cron (e.g. /etc/cron.daily) or systemd service.
+To automatically setup a daily systemd [timer](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html), run `ipset-country -i`.
 
-To do the add a daily systemd [timer](https://www.freedesktop.org/software/systemd/man/systemd.timer.html) automatically, run `ipset-country -i`.
+To uninstall, run: `ipset-country -u`.
 
-Add script to rc e.g. '/etc/rc.local' to run it on boot.
+Or to run script on boot, add it to rc (e.g. '/etc/rc.local').
 
-To uninstall systemd timer run: `ipset-country -u`.
+> Running this script will add rules to your firewall. Make sure you do not lock yourself out in case of issues on a remote system.
 
 ## Configuration
 
-Note that **all options** and settings are explained **in the script itself**: see [ipset-country](ipset-country)
+Note that **all options** and settings are explained **in the script itself**, see [ipset-country](ipset-country)
 
-Optionally. you can use a separate config file located in the same directory as the script like "/etc" or "/usr/local/etc". Specify a custom location using `ipset-country -c /path/to/conf`
+Optionally, you can use a separate config file located in the same directory as the script. To specify a custom location use `ipset-country -c /path/to/conf` (like "/etc/ipset-country.conf" or "/usr/local/etc/ipset-country.conf".)
 
 The config file will overwrite any options set in script. To create a new conf file, run:
 
@@ -55,13 +55,15 @@ In case of issues check the log file '/var/log/ipset-country.log'.
 
 To change log file location, set: `LOG="/path/to/log"`
 
-Or, to log to screen: `LOG="/dev/stdout"`
+Disable all logging: `LOG="/dev/null 2>&1"`
+
+Or, log to screen only: `LOG="/dev/stdout"`
 
 ## Firewalls and options
 
 Set option `FIREWALL` to: "iptables", "ntftables" or "firewalld"
 
-Default is "iptables" (and ipset) to create the chains, rules and sets.
+Default is "iptables"
 
 To block specified Countries, set `MODE` to target "reject" or "drop"  (blacklist).
 
@@ -70,22 +72,25 @@ Default is "reject".
 
 ### Iptables
 
-Set `DENY_RULENUM` to "1" to insert deny rule at begining of existing rules.
+The script will add iptables chains, rules and sets (needs `ipset`).
+
+Change `DENY_RULENUM` to "1" to insert 'deny' rule at beginning of existing rules.
 
 Or, set a specific rule number (see `iptables --numeric -L INPUT --line-numbers`)
 
-Default is 0 (at end).
+Default is 0 (add at end).
 
 ### NFTables
 
 Uses nft with native sets. Needs at least a table and "input" chain already setup.
 
-Example (ipv4):
+Minimal ipv4 example:
 
 ```
 nft add table ip filter
 nft add chain ip filter input \{ type filter hook input priority 0\; \}
 ```
+
 ```
 table ip filter {
     chain input {
@@ -93,7 +98,6 @@ table ip filter {
       # ...
     }
   }
-
 ```
 
 To use optional location specifier of an existing rule set `NFT_RULE_LOC`. Default is empty/unset (`""`), which appends.
