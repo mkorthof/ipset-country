@@ -10,13 +10,13 @@
 
 Running this script will add a 'drop' rule to your firewall. Make sure you do not lock yourself out in case of issues on a remote system.
 
-Setup firewall if you have not done so yet, **at least an input chain** is needed.
+Setup firewall firrst if you have not done so yet, **at least an input chain** is needed.
 
-Run this script from cron, e.g. /etc/cron.daily, or as systemd service.
+Then run this script manually and if all is well, add cron (e.g. /etc/cron.daily) or systemd service.
 
-Or, run `ipset-country -i` to  automatically setup a systemd service and daily [timer](https://www.freedesktop.org/software/systemd/man/systemd.timer).
+To do the add a daily systemd [timer](https://www.freedesktop.org/software/systemd/man/systemd.timer.html) automatically, run `ipset-country -i`.
 
-To run on boot you can also add script to e.g. '/etc/rc.local'.
+Add script to rc e.g. '/etc/rc.local' to run it on boot.
 
 To uninstall systemd timer run: `ipset-country -u`.
 
@@ -64,6 +64,7 @@ Set option `FIREWALL` to: "iptables", "ntftables" or "firewalld"
 Default is "iptables" (and ipset) to create the chains, rules and sets.
 
 To block specified Countries, set `MODE` to target "reject" or "drop"  (blacklist).
+
 To allow specified Countries and block all others, set `MODE` to "accept" (whitelist).
 Default is "reject".
 
