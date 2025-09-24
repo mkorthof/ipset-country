@@ -167,6 +167,7 @@ Useful commands to check and clear blocked ips
 
 ## Changes
 
+- [20250924] changed iptables `-p tcp` to `all`
 - [20250729] add suport for nftables
 - [20250721] add option to inject rejct rule on specific rulenum (pr #22 by miathedev)
 - [20220227] fixed iptables-legacy paths (pr #16 by mainboarder)
