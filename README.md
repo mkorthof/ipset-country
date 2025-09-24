@@ -5,7 +5,7 @@
 - [x] Supports RH and Debian with iptables, nftables and firewalld
 - [x] Also works with ipverse.com and other block list providers
 - [x] Both ipv4 and ipv6 are supported
-- [x] Only blocks incoming traffic (not out)
+- [x] Only applies to incoming traffic (not outgoing)
 
 ## Installation
 
@@ -190,7 +190,7 @@ Also available: [github.com/tokiclover/dotfiles/blob/master/bin/ips.bash](https:
 
 ---
 
-_This used to be a [Gist](https://gist.github.com/mkorthof/3033ff64c4a5b4bd31336d422104d543) but was moved here instead_
+_This used to be a [Gist](https://gist.github.com/mkorthof/3033ff64c4a5b4bd31336d422104d543) but was moved here instead._
 _Please do not add Gist comments, but create an issue [here](https://github.com/mkorthof/ipset-country/issues)_
 
 ---
