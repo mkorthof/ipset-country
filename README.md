@@ -5,6 +5,7 @@
 - [x] Supports RH and Debian with iptables, nftables and firewalld
 - [x] Also works with ipverse.com and other block list providers
 - [x] Both ipv4 and ipv6 are supported
+- [x] Only blocks incoming traffic (not out)
 
 ## Installation
 
