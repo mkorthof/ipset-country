@@ -5,11 +5,11 @@
 - [x] Supports RH and Debian with iptables, nftables and firewalld
 - [x] Also works with ipverse.com and other block list providers
 - [x] Both ipv4 and ipv6 are supported
-- [x] Only applies to incoming traffic (not outgoing)
+- [x] Blocks incoming traffic only
 
 ## Installation
 
-Setup firewall first if you have not done so yet, **at least an input chain** is needed.
+Setup firewall first, if you have not done so yet. **At least an input chain** is needed.
 
 Then run this script manually and if all is well, add to cron (e.g. /etc/cron.daily) or systemd service.
 
@@ -23,7 +23,7 @@ Or to run script on boot, add it to rc (e.g. '/etc/rc.local').
 
 ## Configuration
 
-Note that **all options** and settings are explained **in the script itself**, see [ipset-country](ipset-country)
+Note that **all options** and settings are explained **in the script itself**, see top of [ipset-country](ipset-country)
 
 Optionally, you can use a separate config file located in the same directory as the script. To specify a custom location use `ipset-country -c /path/to/conf` (like "/etc/ipset-country.conf" or "/usr/local/etc/ipset-country.conf".)
 
@@ -56,20 +56,23 @@ In case of issues check the log file '/var/log/ipset-country.log'.
 
 To change log file location, set: `LOG="/path/to/log"`
 
-Disable all logging: `LOG="/dev/null 2>&1"`
-
 Or, log to screen only: `LOG="/dev/stdout"`
+
+Disable all logging: `LOG="/dev/null 2>&1"`
 
 ## Firewalls and options
 
 Set option `FIREWALL` to: "iptables", "ntftables" or "firewalld"
 
-Default is "iptables"
+Default is "iptables".
 
-To block specified Countries, set `MODE` to target "reject" or "drop"  (blacklist).
+To block specified Countries, set `MODE` to target "reject" or "drop" (blacklist).
 
 To allow specified Countries and block all others, set `MODE` to "accept" (whitelist).
+
 Default is "reject".
+
+_Note that outbound traffic is not blocked, and this script does not support it. If you really want to do that anyways, you could edit the script and add rules in OUTPUT chain for iptables or for nftables filter output. FirewallD does not block outbound traffic and would require `--direct` entries or you'd have to create a new policy. None of this was tested._
 
 ### Iptables
 
@@ -79,7 +82,7 @@ Change `DENY_RULENUM` to "1" to insert 'deny' rule at beginning of existing rule
 
 Or, set a specific rule number (see `iptables --numeric -L INPUT --line-numbers`)
 
-Default is 0 (add at end).
+Default is "0" (add at end).
 
 ### NFTables
 
@@ -101,9 +104,11 @@ table ip filter {
   }
 ```
 
-To use optional location specifier of an existing rule set `NFT_RULE_LOC`. Default is empty/unset (`""`), which appends.
+To use optional location specifier of an existing rule set `NFT_RULE_LOC`.
 
 Example: `NFT_RULE_LOC="handle 3"` or `NFT_RULE_LOC="index 5"`
+
+Default is empty/unset (e.i. `NFT_RULE_LOC=""`), which appends rule.
 
 See `nft --handle list ruleset` or `man nft` for more details.
 

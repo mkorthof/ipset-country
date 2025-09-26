@@ -721,7 +721,7 @@ case $FIREWALL in
       func_msg "firewalld: MODE=\"reject\" not suppported, using 'drop' instead"
     fi
     if [ "${LOGIPS:-0}" = 1 ]; then
-      func_msg "firewalld: LOGIPS=1 not suppported, igored"
+      func_msg "firewalld: LOGIPS=1 not suppported, ignored"
     fi
   ;;
 esac
