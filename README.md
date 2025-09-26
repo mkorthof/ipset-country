@@ -191,11 +191,3 @@ Useful commands to check and clear blocked ips
 ## Alternatives
 
 Also available: [github.com/tokiclover/dotfiles/blob/master/bin/ips.bash](https://github.com/tokiclover/dotfiles/blob/master/bin/ips.bash)
-
-
----
-
-_This used to be a [Gist](https://gist.github.com/mkorthof/3033ff64c4a5b4bd31336d422104d543) but was moved here instead._
-_Please do not add Gist comments, but create an issue [here](https://github.com/mkorthof/ipset-country/issues)_
-
----
